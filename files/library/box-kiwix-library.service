@@ -1,0 +1,8 @@
+[Unit]
+Description=EmergencyBox Library: rebuild library.xml from the ZIM folder
+
+[Service]
+Type=oneshot
+# a big ZIM arrives in pieces (rsync, uploads): wait for the copy to settle first
+ExecStartPre=/bin/sleep 20
+ExecStart=/usr/local/sbin/box-kiwix-library

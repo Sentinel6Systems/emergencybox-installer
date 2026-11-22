@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# box-kiwix-library : rebuild the Library's list (library.xml) from the ZIM files in the content folder.
+# kiwix-serve watches library.xml (--monitorLibrary) and picks up the new list by itself.
+# Runs by itself when the ZIM folder changes (box-kiwix-library.path), and from the admin page.
+set -euo pipefail
+. /etc/emergencybox/library.env
+tmp="$(mktemp "$LIBRARY_XML.XXXXXX")"
+printf '<?xml version="1.0" encoding="UTF-8"?>\n<library version="20110515">\n</library>\n' > "$tmp"
+n=0; bad=0
+shopt -s nullglob
+for z in "$ZIM_DIR"/*.zim; do
+  case "$(basename "$z")" in test.zim|.*) continue ;; esac
+  if kiwix-manage "$tmp" add "$z" >/dev/null 2>&1; then n=$((n+1)); else bad=$((bad+1)); echo "skipped (not a readable ZIM): $z" >&2; fi
+done
+chmod 644 "$tmp"
+if [ -f "$LIBRARY_XML" ] && cmp -s "$tmp" "$LIBRARY_XML"; then rm -f "$tmp"; else mv -f "$tmp" "$LIBRARY_XML"; fi
+[ "$bad" -gt 0 ] && echo "library.xml: $n ZIM file(s), $bad skipped" || echo "library.xml: $n ZIM file(s)"

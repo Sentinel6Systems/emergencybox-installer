@@ -1,0 +1,5 @@
+# Each box's own settings (copy of box.conf.default)
+box.conf
+
+# Python caches
+__pycache__/

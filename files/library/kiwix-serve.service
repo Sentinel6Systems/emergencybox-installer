@@ -1,0 +1,17 @@
+[Unit]
+Description=EmergencyBox Library (kiwix-serve)
+After=local-fs.target network.target
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/bin/kiwix-serve --library --monitorLibrary --blockexternal --address=127.0.0.1 --port=8184 --urlRootLocation=/kiwix --threads=4 /var/lib/kiwix/library.xml
+Restart=on-failure
+RestartSec=5
+MemoryMax=600M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

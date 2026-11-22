@@ -1,0 +1,22 @@
+[Unit]
+Description=EmergencyBox Books (Calibre-Web)
+After=local-fs.target network.target
+
+[Service]
+User=calibreweb
+Group=calibreweb
+Environment=CALIBRE_DBPATH=/var/lib/calibre-web
+# pip-installed Calibre-Web always makes ~/.calibre-web; home = its settings folder
+Environment=HOME=/var/lib/calibre-web
+ExecStart=/opt/calibre-web/venv/bin/cps -p /var/lib/calibre-web/app.db -i 127.0.0.1
+Restart=on-failure
+RestartSec=5
+MemoryMax=400M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/calibre-web {{CALIBRE_LIB}}
+
+[Install]
+WantedBy=multi-user.target

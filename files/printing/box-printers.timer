@@ -1,0 +1,9 @@
+[Unit]
+Description=EmergencyBox: look for new printers 1 minute after boot, then every 2 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

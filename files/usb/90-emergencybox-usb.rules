@@ -1,0 +1,3 @@
+# EmergencyBox: USB stick partitions (FAT32, exFAT, NTFS) -> /media/usbN for My files.
+# box-usb itself skips the disk the box runs from.
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", ENV{ID_BUS}=="usb", ENV{ID_FS_TYPE}=="vfat|exfat|ntfs", TAG+="systemd", ENV{SYSTEMD_WANTS}+="box-usb@%k.service"

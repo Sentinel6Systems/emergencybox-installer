@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Games</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
+  h1 { margin: 0 0 1rem; font-size: 1.6rem; }
+  h2 { margin: 1.5rem 0 .5rem; font-size: 1.2rem; color: #9cf; }
+  input { width: 100%; box-sizing: border-box; padding: .7rem; font-size: 1rem; border-radius: 8px; border: 0; margin-bottom: .5rem; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li a { display: block; padding: .8rem; margin: .3rem 0; background: #222; color: #eee; text-decoration: none; border-radius: 8px; }
+  li a:active { background: #333; }
+  .note { color: #888; }
+</style>
+</head>
+<body>
+<h1>🎮 Games</h1>
+<input id="q" type="search" placeholder="Search games…">
+<div id="list"><p class="note">Loading…</p></div>
+<script>
+// Folder name under /games/roms/ = EmulatorJS core name.
+const SYSTEMS = {
+  snes: "Super Nintendo", segaMD: "Sega Mega Drive / Genesis", nes: "Nintendo (NES)",
+  gb: "Game Boy", gbc: "Game Boy Color", gba: "Game Boy Advance",
+  segaMS: "Sega Master System", segaGG: "Sega Game Gear", n64: "Nintendo 64", psx: "PlayStation"
+};
+const ROMS = "/games/roms/";
+const list = document.getElementById("list");
+
+function niceName(f) { return f.replace(/\.[^.]+$/, "").replace(/[_]+/g, " "); }
+
+async function load() {
+  let html = "";
+  const dirs = (await (await fetch(ROMS)).json()).filter(e => e.type === "directory");
+  dirs.sort((a, b) => (SYSTEMS[a.name] || a.name).localeCompare(SYSTEMS[b.name] || b.name));
+  for (const d of dirs) {
+    const files = (await (await fetch(ROMS + encodeURIComponent(d.name) + "/")).json())
+      .filter(e => e.type === "file" && !e.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!files.length) continue;
+    html += `<h2>${SYSTEMS[d.name] || d.name}</h2><ul>`;
+    for (const f of files) {
+      const href = `play.html?core=${encodeURIComponent(d.name)}&rom=${encodeURIComponent(f.name)}`;
+      html += `<li><a href="${href}">${niceName(f.name)}</a></li>`;
+    }
+    html += "</ul>";
+  }
+  list.innerHTML = html || '<p class="note">No games yet.</p>';
+}
+
+document.getElementById("q").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  list.querySelectorAll("li").forEach(li => li.style.display = li.textContent.toLowerCase().includes(q) ? "" : "none");
+  list.querySelectorAll("h2").forEach(h => {
+    const any = [...h.nextElementSibling.children].some(li => li.style.display !== "none");
+    h.style.display = h.nextElementSibling.style.display = any ? "" : "none";
+  });
+});
+
+load().catch(err => list.innerHTML = `<p class="note">Couldn't load the game list (${err}).</p>`);
+</script>
+</body>
+</html>

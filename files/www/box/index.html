@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<title>{{BOX_NAME}}</title>
+<link rel="stylesheet" href="assets/box.css">
+</head>
+<body>
+
+<div class="bar">
+ <div class="wrap">
+  <div class="mark">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg>
+   {{BOX_NAME_UPPER}}
+  </div>
+  <div class="stat mono" id="liveStat"><i></i>OFFLINE · LOCAL NETWORK</div>
+  <div class="acts">
+   <a class="pwr hide" id="adminLink" href="admin/" aria-label="Admin settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <span>Admin</span>
+   </a>
+   <button class="pwr" type="button" data-act="reboot" aria-label="Restart the box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+    <span>Restart</span>
+   </button>
+   <button class="pwr off" type="button" data-act="off" aria-label="Turn off the box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>
+    <span>Turn off</span>
+   </button>
+  </div>
+ </div>
+</div>
+
+<main class="wrap main">
+ <section class="intro">
+  <h1>Everything you need, stored on this box.</h1>
+  <p class="lede">No internet required. Pick what you need below, or search the whole library.</p>
+  <form class="search" id="search" role="search">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+   <input id="q" type="search" placeholder="Search first aid, repairs…" aria-label="Search the library" autocomplete="off">
+   <button type="submit">Search</button>
+  </form>
+ </section>
+
+ <section class="svc">
+  <div class="label mono">SERVICES</div>
+  <div class="grid" id="grid"></div>
+ </section>
+
+ <section class="sys" aria-label="System status">
+  <div class="label mono">SYSTEM STATUS</div>
+  <div class="stats mono" id="stats">
+   <div class="st lvl" id="sCpu"><span>CPU</span><b>–</b><div class="meter"><i></i></div></div>
+   <div class="st lvl" id="sTemp"><span>CPU TEMP</span><b>–</b><div class="meter"><i></i></div></div>
+   <div class="st lvl" id="sMem"><span>MEMORY</span><b>–</b><div class="meter"><i></i></div></div>
+   <div class="st lvl" id="sDisk"><span>STORAGE</span><b>–</b><div class="meter"><i></i></div></div>
+   <div class="st" id="sNet"><span>NETWORK</span><b>–</b><em>&nbsp;</em></div>
+   <button class="st tap" id="sCli" type="button" aria-haspopup="dialog"><span>CONNECTED DEVICES</span><b>–</b><em>tap for details ›</em></button>
+   <div class="st lvl" id="sPwr"><span>POWER SUPPLY</span><b>–</b><em>&nbsp;</em></div>
+   <div class="st" id="sUp"><span>UPTIME</span><b>–</b><em>since last start</em></div>
+  </div>
+  <p class="sysnote mono" id="sysNote">CPU, MEMORY AND NETWORK ARE 5-SECOND AVERAGES</p>
+ </section>
+</main>
+
+<footer class="foot-pad">
+ <div class="wrap info mono">
+  <div><span>WI-FI</span><b>{{WIFI_SSID}}</b></div>
+  <div><span>PASSWORD</span><b>{{WIFI_PASSWORD}}</b></div>
+  <div><span>ADDRESS</span><b>http://{{ADDRESS}}</b> or <b>{{HOTSPOT_IP}}</b></div>
+  <div><span>SIGN IN AS</span><b>{{USER_NAME}} / {{USER_PASSWORD}}</b></div>
+ </div>
+</footer>
+
+<dialog id="devDlg" class="wide" aria-labelledby="devT">
+ <div class="dhead"><div><h3 id="devT">Connected devices</h3><small class="mono" id="devSub">UPDATING…</small></div><button class="btn x" type="button" data-close>Close</button></div>
+ <div class="dlist" id="devList"></div>
+</dialog>
+
+<dialog id="pwrDlg">
+ <div class="dlg" id="pAsk">
+  <h3 id="askT"></h3>
+  <p>Anyone using the box will be disconnected.</p>
+  <p class="note" id="askN"></p>
+  <div class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn warn" type="button" id="pGo"></button></div>
+ </div>
+ <div class="dlg hide" id="pOff">
+  <h3>Shutting down</h3>
+  <!-- TODO: confirm wording after watching the Pi's LEDs on a real poweroff -->
+  <p>Wait about <b>30 seconds</b>, until the green light on the box stops blinking. Then it is safe to unplug.</p>
+  <p class="note">To start again, plug it back in and wait about two minutes before joining the Wi-Fi.</p>
+ </div>
+ <div class="dlg hide" id="pReboot">
+  <h3>Restarting</h3>
+  <p>This takes about <b>2 minutes</b>. Leave the box plugged in.</p>
+  <p class="note">Your phone may drop off the Wi-Fi while it restarts. If it doesn't reconnect by itself, join <b>{{WIFI_SSID}}</b> again.</p>
+  <p class="mono note" id="rbStat">WAITING FOR THE BOX…</p>
+ </div>
+ <div class="dlg hide" id="pErr">
+  <h3>The box didn't respond</h3>
+  <p>It may already be restarting or turning off. Wait two minutes, then reload this page.</p>
+  <div class="row"><button class="btn" type="button" data-close>Close</button></div>
+ </div>
+</dialog>
+
+<script>
+{
+/* ---------- SETTINGS: everything you might need to change is here ---------- */
+const KIWIX = '/kiwix';
+const book = n => `${KIWIX}/content/${n}/`;   // verify on the Pi: names come from library.xml
+const CFG = {
+  mapHome: '/map/#{{MAP_ZOOM}}/{{MAP_LAT}}/{{MAP_LON}}', // Fieldmap: #zoom/lat/lon from MAP_ZOOM/MAP_LAT/MAP_LON in box.conf
+  statsUrl: '/api/stats',
+  statsEveryMs: 2000,
+  shutdownUrl: '/api/shutdown',                // POST; endpoint still to build
+  rebootUrl: '/api/reboot',                    // POST; same endpoint service
+  gamesRoms: '/games/roms/',                    // nginx autoindex (JSON) of the ROM folders
+  hideUnready: true,                           // false = show Learn / My files greyed out
+};
+
+const I = {
+ med:'<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/>',
+ surv:'<path d="M3 20l7-13 4 7 2-3 5 9z"/><circle cx="16" cy="6" r="1.6"/>',
+ map:'<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
+ print:'<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8"/><path d="M7 14h10v7H7z"/>',
+ lib:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>',
+ book:'<path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"/><path d="M20 4v14h-7M20 4h-6a3 3 0 0 0-1 .2"/>',
+ learn:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>',
+ film:'<rect x="3" y="5" width="18" height="14"/><path d="M10 9l5 3-5 3z"/>',
+ docs:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
+ game:'<path d="M7 6h10a5 5 0 0 1 4.9 6l-.8 4a3 3 0 0 1-5.3 1.3L14 15h-4l-1.8 2.3A3 3 0 0 1 2.9 16l-.8-4A5 5 0 0 1 7 6z"/><path d="M6.5 11h3M8 9.5v3"/><path d="M15.5 10.5h.01M17.5 12.5h.01"/>'
+};
+const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
+
+const TILES = [
+ {t:'Library', d:'Medical, survival, water, food, knots, repair and all of Wikipedia. Start here.', ic:'lib', href:'library/index.html', part:'library'},
+ {t:'Books & manuals', d:'Field manuals and ebooks to read or download.', ic:'book', href:'books/index.html', part:'books'},
+ {t:'Maps', d:'Offline topo maps: mark up, plan routes and print with grid and compass. Share locations and send messages between phones.', ic:'map', href:CFG.mapHome, part:'maps', needsContent:true},
+ {t:'Movies & shows', d:'Movies, shows and prepping videos on any device.', ic:'film', href:'/jellyfin/', part:'movies', meta:'Sign in <b>{{USER_NAME}} / {{USER_PASSWORD}}</b>'},
+ {t:'Games', d:'Classic Super Nintendo and Sega games. Play in the browser; a Bluetooth controller works too.', ic:'game', href:'/games/', part:'games'},
+ {t:'Learn', d:'Lessons and videos for kids and adults.', ic:'learn', href:'/kolibri/', off:true},
+ {t:'My files', d:'Keep copies of IDs, insurance, photos and contacts. Open files on a USB drive too.', ic:'docs', href:'files/index.html', check:'files'},
+];
+
+// On the box itself (its name, its hotspot address, or any private address it's reached on), not a preview
+const ON_BOX = ['{{ADDRESS}}', '{{HOSTNAME}}', '{{HOTSPOT_IP}}', 'localhost'].includes(location.hostname)
+  || /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(location.hostname);
+const tileHtml = x =>
+ `<a class="bay${x.off?' off':''}" href="${x.href}"${x.off?' aria-disabled="true" tabindex="-1"':''}>
+  <span class="ic">${svg(x.ic)}</span>
+  <h3>${x.t}</h3><p>${x.d}</p>
+  ${x.off ? `<span class="meta mono">${x.why || 'NOT SET UP YET'}</span>` : x.meta ? `<span class="meta">${x.meta}</span>` : ''}
+  <span class="go" aria-hidden="true">›</span></a>`;
+const READY = {};   // tiles with a check appear only once the check passes
+let PARTS = null;   // from /api/parts: which parts are installed, and how much content each has
+const tileState = x => {
+  if (x.off) return CFG.hideUnready ? null : {...x};
+  if (x.part && ON_BOX) {
+    if (!PARTS) return null;                                   // not loaded yet
+    const p = PARTS[x.part];
+    if (!p || !p.installed) return CFG.hideUnready ? null : {...x, off: true};
+    // Empty, but it works: open it anyway (Jellyfin to sign in, the Library to see it's there).
+    // Only a part that can't run without content (needsContent) stays closed.
+    if (p.items === 0) return x.needsContent ? {...x, off: true, why: 'NOTHING ADDED YET'}
+      : {...x, meta: '<span class="mono">NOTHING ADDED YET</span>' + (x.meta ? ' · ' + x.meta : '')};
+  }
+  if (x.check && !READY[x.check]) return CFG.hideUnready ? null : {...x, off: true};
+  return x;
+};
+const renderTiles = () => { document.getElementById('grid').innerHTML = TILES.map(tileState).filter(Boolean).map(tileHtml).join(''); };
+renderTiles();
+// The library search only shows once the Library is installed and has something in it
+const searchReady = () => { const p = PARTS && PARTS.library; document.getElementById('search').hidden = ON_BOX && !(p && p.installed && p.items > 0); };
+searchReady();
+if (ON_BOX) fetch('/api/parts', {cache: 'no-store'}).then(r => r.json()).then(j => { PARTS = j.parts || {}; renderTiles(); searchReady(); document.getElementById('adminLink').classList.toggle('hide', !(PARTS.admin && PARTS.admin.installed)); }).catch(() => {});
+
+const CHECKS = {};
+
+/* box-doctor: if the last self-check found a problem it couldn't fix, say so above the cards */
+if (ON_BOX) fetch('/api/doctor', {cache: 'no-store'}).then(r => r.json()).then(d => {
+  if (d.ok !== false) return;
+  const bad = (d.checks || []).filter(c => !c.ok).map(c => c.name);
+  const el = document.createElement('div');
+  el.className = 'doctor mono';
+  el.setAttribute('role', 'status');
+  el.textContent = 'SELF-CHECK: ' + (bad.join(', ') || 'a problem') + ' not working. Try Restart below; if it stays, the box may need repair.';
+  const g = document.getElementById('grid'); g.parentNode.insertBefore(el, g);
+}).catch(() => {});
+/* My files: show the card once the file service answers */
+CHECKS.files = async () => {
+  if (!ON_BOX) return true;  // preview away from the box
+  const r = await fetch('/api/files/roots', {cache: 'no-store'}); if (!r.ok) return false;
+  return (await r.json()).roots.some(x => x.id === 'my' && !x.missing);
+};
+Object.entries(CHECKS).forEach(([k, fn]) => fn().then(ok => { if (ok) { READY[k] = true; renderTiles(); } }).catch(() => {}));
+
+document.getElementById('search').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('q').value.trim(); if (!q) return;
+  location.href = `library/index.html?q=${encodeURIComponent(q)}`;
+});
+
+const ACT = {
+  off:    {t:'Turn off the box?', n:'To turn it back on, unplug the power and plug it back in.', b:'Turn off', url:CFG.shutdownUrl, done:'pOff'},
+  reboot: {t:'Restart the box?',  n:'It will come back by itself in about two minutes. Use this if something stops working.', b:'Restart', url:CFG.rebootUrl, done:'pReboot'},
+};
+const pd = document.getElementById('pwrDlg'), $ = id => document.getElementById(id);
+const show = id => ['pAsk','pOff','pReboot','pErr'].forEach(x => $(x).classList.toggle('hide', x !== id));
+let cur = null;
+document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+  cur = ACT[b.dataset.act];
+  $('askT').textContent = cur.t; $('askN').textContent = cur.n; $('pGo').textContent = cur.b;
+  show('pAsk'); pd.showModal();
+}));
+// after a restart, poll until the box answers again, then reload the page
+const waitForBox = () => {
+  const t0 = Date.now();
+  const tick = async () => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    $('rbStat').textContent = `WAITING FOR THE BOX… ${s}s`;
+    if (s > 20) {
+      try { const r = await fetch('/?alive=' + Date.now(), {cache:'no-store'}); if (r.ok) { $('rbStat').textContent = 'BACK ONLINE. RELOADING…'; setTimeout(() => location.reload(), 800); return; } } catch {}
+    }
+    if (s > 300) { $('rbStat').textContent = 'STILL WAITING. REJOIN THE EMERGENCYBOX WI-FI, THEN RELOAD.'; return; }
+    setTimeout(tick, 4000);
+  };
+  setTimeout(tick, 4000);
+};
+$('pGo').addEventListener('click', async () => {
+  const onBox = ON_BOX;
+  if (!onBox) { show(cur.done); return; }          // preview away from the box: show the next screen only
+  let ok = true;
+  try { const r = await fetch(cur.url, {method:'POST', headers:{'X-Box-Action':'1'}}); ok = r.ok; } catch { /* connection drops as it goes down */ }
+  if (!ok) { show('pErr'); return; }
+  show(cur.done);
+  if (cur.done === 'pReboot') waitForBox();
+});
+
+/* ---------- system status ---------- */
+const GB = b => (b / 1e9).toFixed(1);
+const fmtUp = s => { const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; };
+const cell = (id, val, pct, lvl, sub) => {
+  const c = $(id); c.querySelector('b').innerHTML = val;
+  if (pct != null && c.querySelector('.meter i')) c.querySelector('.meter i').style.width = Math.max(0, Math.min(100, pct)) + '%';
+  c.classList.remove('ok','warm','hot'); if (lvl) c.classList.add(lvl);
+  if (sub != null && c.querySelector('em')) c.querySelector('em').textContent = sub;
+};
+const lvlPct = (p, w, h) => p >= h ? 'hot' : p >= w ? 'warm' : 'ok';
+const render = d => {
+  cell('sCpu', `${Math.round(d.cpu_pct)}<small>%</small>`, d.cpu_pct, lvlPct(d.cpu_pct, 70, 90));
+  if (d.temp_c == null) cell('sTemp', '–', 0, null);
+  else cell('sTemp', `${d.temp_c.toFixed(0)}<small>°C</small>`, (d.temp_c - 30) / (85 - 30) * 100, d.temp_level);
+  const mp = d.mem_used / d.mem_total * 100;
+  cell('sMem', `${GB(d.mem_used)}<small>/ ${GB(d.mem_total)} GB</small>`, mp, lvlPct(mp, 80, 92));
+  const dk = d.disks[0];
+  if (dk) { const dp = dk.used / dk.total * 100; cell('sDisk', `${Math.round(dk.used/1e9)}<small>/ ${Math.round(dk.total/1e9)} GB</small>`, dp, lvlPct(dp, 85, 95)); }
+  cell('sNet', `${(d.net_tx_mbps + d.net_rx_mbps).toFixed(1)}<small>Mb/s</small>`, null, null, `↓ ${d.net_tx_mbps.toFixed(1)}  ↑ ${d.net_rx_mbps.toFixed(1)}`);
+  cell('sCli', d.clients == null ? '–' : String(d.clients), null, null);
+  const pw = d.power;
+  if (!pw) cell('sPwr', '–', null, null, 'not available');
+  else if (pw.undervolt_now) cell('sPwr', 'LOW', null, 'hot', 'under-voltage: use a better supply');
+  else if (pw.throttled_now) cell('sPwr', 'THROTTLED', null, 'warm', 'slowed down to protect itself');
+  else if (pw.undervolt_since_boot) cell('sPwr', 'OK', null, 'warm', 'dipped low earlier since start');
+  else cell('sPwr', 'OK', null, 'ok', 'no problems since start');
+  cell('sUp', fmtUp(d.uptime_s), null, null);
+};
+const onBoxHost = ON_BOX;
+let fails = 0, t = 0;
+const demo = () => { t++; const w = Math.sin(t / 4);  // preview away from the box: sample numbers only
+  return {ready:true, cpu_pct:22 + 14*w, temp_c:56 + 6*w, temp_level:56 + 6*w >= 65 ? 'warm' : 'ok', mem_used:1.9e9 + 1.5e8*w, mem_total:3.98e9,
+    disks:[{used:71e9, total:118e9}], net_rx_mbps:0.4 + .2*w, net_tx_mbps:6.2 + 3*w, clients:3,
+    power:{undervolt_now:false, throttled_now:false, undervolt_since_boot:false}, uptime_s:93780, load1:0.84}; };
+const poll = async () => {
+  try {
+    const d = onBoxHost ? await (await fetch(CFG.statsUrl, {cache:'no-store'})).json() : demo();
+    if (d.ready) { render(d); fails = 0; $('liveStat').classList.remove('stale'); $('sysNote').textContent = onBoxHost ? 'CPU, MEMORY AND NETWORK ARE 5-SECOND AVERAGES' : 'PREVIEW: SAMPLE NUMBERS. LIVE ON THE BOX.'; }
+  } catch { if (++fails >= 3) { $('liveStat').classList.add('stale'); $('sysNote').textContent = 'STATUS NOT AVAILABLE RIGHT NOW'; } }
+  setTimeout(poll, document.hidden ? 10000 : CFG.statsEveryMs);
+};
+poll();
+
+/* ---------- connected devices ---------- */
+const DI = {
+ phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+ tablet:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>',
+ computer:'<rect x="3" y="4" width="18" height="12"/><path d="M1 20h22"/>',
+ tv:'<rect x="2" y="5" width="20" height="13"/><path d="M8 21h8"/>',
+ printer:'<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8"/><path d="M7 14h10v7H7z"/>',
+ unknown:'<rect x="4" y="4" width="16" height="16"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17h.01"/>'
+};
+const TYPE = {phone:'Phone', tablet:'Tablet', computer:'Computer', tv:'TV / streamer', printer:'Printer', unknown:'Unknown'};
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const bytes = b => b == null ? '–' : b >= 1e9 ? (b/1e9).toFixed(2)+' GB' : b >= 1e6 ? (b/1e6).toFixed(1)+' MB' : (b/1e3).toFixed(0)+' KB';
+const dur = s => s == null ? '–' : s < 60 ? s+'s' : fmtUp(s);
+const sig = d => { if (d == null) return '–';
+  const q = d >= -55 ? [4,'Excellent'] : d >= -67 ? [3,'Good'] : d >= -75 ? [2,'Fair'] : [1,'Weak'];
+  return `<span class="bars">${[1,2,3,4].map(i=>`<s class="${i<=q[0]?'on':''}" style="height:${i*3}px"></s>`).join('')}</span>${q[1]} <i>${d} dBm</i>`; };
+const devCard = c => {
+  const row = (k, v) => `<div><dt class="mono">${k}</dt><dd>${v}</dd></div>`;
+  return `<div class="dev"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${DI[c.type]||DI.unknown}</svg>
+   <b>${esc(c.name) || 'Unnamed device'}</b><span class="tags">${c.you?'<span class="tag me mono">THIS DEVICE</span>':''}<span class="tag mono">${esc(c.link).toUpperCase()}</span></span></div>
+   <dl>${row('TYPE', TYPE[c.type] + (c.type!=='unknown'?' <i>(best guess)</i>':''))}
+   ${row('IP ADDRESS', `<span class="mono">${esc(c.ip) || '–'}</span>`)}
+   ${row('MAC ADDRESS', `<span class="mono">${esc(c.mac)}</span>${c.random_mac?' <i>private / randomised</i>':''}`)}
+   ${row('MAKER', c.random_mac ? '<i>hidden by private address</i>' : esc(c.vendor) || '–')}
+   ${row('SIGNAL', sig(c.signal_dbm))}
+   ${row('CONNECTED FOR', dur(c.connected_s))}
+   ${row('DATA', `↓ ${bytes(c.to_device_bytes)} &nbsp;↑ ${bytes(c.from_device_bytes)}`)}
+   ${row('LINK SPEED', c.link_mbps ? c.link_mbps.toFixed(0)+' Mb/s' : '–')}</dl></div>`;
+};
+const demoClients = () => [   // preview only (page opened away from the box); made-up values
+  {name:'Phone', type:'phone', link:'Wi-Fi', ip:'192.0.2.23', mac:'02:00:00:00:00:01', random_mac:true, signal_dbm:-52, connected_s:3605, to_device_bytes:98765432, from_device_bytes:1234567, link_mbps:72.2, you:true},
+  {name:'Tablet', type:'tablet', link:'Wi-Fi', ip:'192.0.2.27', mac:'02:00:00:00:00:02', random_mac:true, signal_dbm:-64, connected_s:840, to_device_bytes:412000000, from_device_bytes:3100000, link_mbps:65},
+  {name:'Laptop', type:'computer', link:'Wi-Fi', ip:'192.0.2.31', mac:'00:00:5e:00:53:01', random_mac:false, vendor:'Example Maker', signal_dbm:-73, connected_s:12000, to_device_bytes:2.1e9, from_device_bytes:44000000, link_mbps:39},
+];
+const dd = document.getElementById('devDlg');
+let devTimer = null;
+const loadDevs = async () => {
+  try {
+    const list = onBoxHost ? (await (await fetch('/api/clients', {cache:'no-store'})).json()).clients : demoClients();
+    $('devList').innerHTML = list.length ? list.map(devCard).join('') : '<p class="empty">No devices connected right now.</p>';
+    $('devSub').textContent = (onBoxHost ? `${list.length} DEVICE${list.length===1?'':'S'} · UPDATES EVERY 3 S` : 'PREVIEW: SAMPLE DEVICES');
+  } catch { $('devSub').textContent = 'COULD NOT LOAD THE DEVICE LIST'; }
+  if (dd.open) devTimer = setTimeout(loadDevs, 3000);
+};
+$('sCli').addEventListener('click', () => { $('devList').innerHTML = ''; dd.showModal(); loadDevs(); });
+dd.addEventListener('close', () => clearTimeout(devTimer));
+dd.addEventListener('click', e => { if (e.target === dd || e.target.closest('[data-close]')) dd.close(); });
+
+pd.addEventListener('click', e => { if (e.target === pd || e.target.closest('[data-close]')) pd.close(); });
+}
+</script>
+</body>
+</html>

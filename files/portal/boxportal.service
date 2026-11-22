@@ -1,0 +1,21 @@
+[Unit]
+Description=EmergencyBox captive message (boxportal)
+After=network.target
+
+[Service]
+User=boxportal
+Group=boxportal
+Environment=STATE_DIRECTORY=/var/lib/boxportal
+Environment=BOXPORTAL_PORT=8183
+ExecStart=/usr/bin/python3 /opt/emergencybox/portal/boxportal-server.py
+Restart=on-failure
+RestartSec=3
+MemoryMax=64M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/boxportal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<title>Reading · Books</title>
+<link rel="stylesheet" href="../assets/box.css">
+</head>
+<body class="reader-body">
+<div class="bar"><div class="wrap" style="gap:8px">
+ <a class="icbtn" href="index.html" aria-label="Back to books"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></a>
+ <span class="rtitle" id="title">Loading…</span>
+ <button class="icbtn" id="tocBtn" type="button" aria-label="Contents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+ <button class="icbtn" id="font" type="button" aria-label="Text size">Aa</button>
+</div></div>
+<div id="view"></div>
+<div class="rfoot">
+ <button class="icbtn" id="prev" type="button" aria-label="Previous page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+ <span class="prog mono" id="prog">&nbsp;</span>
+ <button class="icbtn" id="next" type="button" aria-label="Next page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+</div>
+
+<dialog id="tocDlg" class="wide" aria-label="Contents">
+ <div class="dhead"><h3>Contents</h3><button class="btn x" type="button" data-close>Close</button></div>
+ <nav class="toc" id="toc"></nav>
+</dialog>
+
+<script src="../assets/vendor/jszip.min.js"></script>
+<script src="../assets/vendor/epub.min.js"></script>
+<script src="../assets/box.js"></script>
+<script>
+{
+const {$, esc, params, store, onBox} = BOX;
+const p = params(), id = p.get('id'), key = 'ebx-pos-' + id;
+$('title').textContent = p.get('t') || 'Book';
+document.title = `${p.get('t') || 'Book'} · Books`;
+
+const SIZES = [90, 100, 115, 130, 150];
+let size = +(store.get('ebx-font') || 100);
+const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+
+async function start() {
+  if (!onBox || !/^\d+$/.test(id || '')) { $('prog').textContent = 'PREVIEW: BOOKS OPEN HERE ON THE BOX'; return; }
+  $('prog').innerHTML = '<span class="spin"></span>OPENING BOOK…';
+  const r = await fetch(`/books/opds/download/${id}/epub/`);
+  if (!r.ok) throw new Error('download ' + r.status);
+  const book = ePub(await r.arrayBuffer());
+  const rend = book.renderTo('view', {width: '100%', height: '100%', flow: 'paginated', spread: 'none', allowScriptedContent: false});
+  rend.themes.register('night', {body: {background: '#0e110f !important', color: '#e4e6df !important'}, 'a': {color: '#a9c06a !important'}, 'img': {background: '#fff'}});
+  rend.themes.register('day', {body: {background: '#f8f7f2 !important', color: '#1a1e1a !important'}, 'a': {color: '#4f6b1f !important'}});
+  const theme = () => rend.themes.select(dark() ? 'night' : 'day');
+  theme(); matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', theme);
+  rend.themes.fontSize(size + '%');
+  await rend.display(store.get(key) || undefined);
+
+  const nav = await book.loaded.navigation;
+  const items = []; const walk = (list, d) => list.forEach(i => { items.push([i, d]); walk(i.subitems || [], d + 1); });
+  walk(nav.toc, 0);
+  $('toc').innerHTML = items.map(([i, d], n) => `<a href="#" data-n="${n}" class="${d ? 'sub' : ''}">${esc(i.label.trim())}</a>`).join('') || '<p class="note" style="padding:12px">This book has no table of contents.</p>';
+  $('toc').addEventListener('click', e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); rend.display(items[+a.dataset.n][0].href); $('tocDlg').close(); });
+
+  let ready = false;
+  book.ready.then(() => book.locations.generate(1200)).then(() => { ready = true; upd(rend.currentLocation()); }).catch(() => {});
+  const upd = loc => {
+    if (!loc?.start) return;
+    store.set(key, loc.start.cfi);
+    const chap = items.find(([i]) => i.href && loc.start.href && i.href.split('#')[0].endsWith(loc.start.href.split('/').pop()))?.[0]?.label?.trim();
+    const pct = ready ? Math.round(book.locations.percentageFromCfi(loc.start.cfi) * 100) + '%' : '';
+    $('prog').textContent = [chap, pct].filter(Boolean).join(' · ').toUpperCase() || ' ';
+  };
+  rend.on('relocated', upd);
+
+  const prev = () => rend.prev(), next = () => rend.next();
+  $('prev').onclick = prev; $('next').onclick = next;
+  const key2 = e => { if (e.key === 'ArrowLeft') prev(); if (e.key === 'ArrowRight') next(); };
+  document.addEventListener('keydown', key2); rend.on('keydown', key2);
+  // swipe left/right to turn pages
+  let sx = null, sy = null;
+  rend.on('touchstart', e => { sx = e.changedTouches[0].screenX; sy = e.changedTouches[0].screenY; });
+  rend.on('touchend', e => {
+    if (sx == null) return;
+    const dx = e.changedTouches[0].screenX - sx, dy = e.changedTouches[0].screenY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) dx < 0 ? next() : prev();
+    sx = null;
+  });
+  $('font').onclick = () => {
+    size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length] || 100;
+    store.set('ebx-font', size); rend.themes.fontSize(size + '%');
+    $('prog').textContent = `TEXT SIZE ${size}%`;
+  };
+  addEventListener('resize', () => rend.resize());
+}
+$('tocBtn').onclick = () => $('tocDlg').showModal();
+$('tocDlg').addEventListener('click', e => { if (e.target === $('tocDlg') || e.target.closest('[data-close]')) $('tocDlg').close(); });
+start().catch(() => { $('prog').textContent = 'COULD NOT OPEN THIS BOOK. TRY DOWNLOADING IT INSTEAD.'; });
+}
+</script>
+</body>
+</html>

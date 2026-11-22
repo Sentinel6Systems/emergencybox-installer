@@ -1,0 +1,9 @@
+[Unit]
+Description=EmergencyBox: check the hotspot 60 s after boot, then every 5 minutes
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

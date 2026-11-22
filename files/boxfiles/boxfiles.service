@@ -1,0 +1,27 @@
+[Unit]
+Description=EmergencyBox file manager API (My files + USB drives)
+After=local-fs.target network.target
+Wants=local-fs.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/boxfiles/boxfiles.py
+UMask=0002
+Environment=BOXFILES_MY={{MYFILES_DIR}}
+# Movies & shows: Jellyfin's library folders (uploads go into them)
+Environment=BOXFILES_LIBRARY={{CONTENT_DIR}}/media
+Environment="BOXFILES_LIBRARY_NAMES={{JELLYFIN_LIBRARIES}}"
+Environment=BOXFILES_MAX_GB={{MYFILES_MAX_GB}}
+Environment=BOXFILES_RESERVE_GB={{SPACE_RESERVE_GB}}
+Restart=always
+RestartSec=3
+# runs as root so it can write to USB sticks and unmount them on Eject;
+# it only listens on 127.0.0.1 and only touches My files ({{MYFILES_DIR}}), Movies & shows and /media/usbN
+ProtectHome=yes
+# Eject unmounts USB sticks: mounts and unmounts must pass between the service and the system
+MountFlags=shared
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=200M
+
+[Install]
+WantedBy=multi-user.target

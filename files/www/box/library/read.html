@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<title>Reading · Library</title>
+<link rel="stylesheet" href="../assets/box.css">
+</head>
+<body class="reader-body">
+<div class="bar"><div class="wrap" style="gap:8px">
+ <button class="icbtn" id="back" type="button" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+ <span class="rtitle" id="title">Loading…</span>
+ <a class="icbtn" id="find" href="index.html" aria-label="Search this collection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></a>
+ <a class="icbtn" href="../index.html" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg></a>
+</div></div>
+<iframe class="frame" id="f" title="Article"></iframe>
+<script src="../assets/box.js"></script>
+<script>
+{
+const {$, params, onBox} = BOX;
+const p = params(), u = p.get('u') || '', b = p.get('b');
+const f = $('f');
+// only open pages from the box's own Kiwix
+if (/^\/kiwix\//.test(u)) f.src = u;
+else { $('title').textContent = onBox ? 'Nothing to show' : 'Preview: articles open here on the box'; }
+if (b) $('find').href = `index.html?book=${encodeURIComponent(b)}`;
+f.addEventListener('load', () => {
+  try {
+    const d = f.contentDocument;
+    $('title').textContent = d.title || 'Library';
+    document.title = `${d.title} · Library`;
+    // links to other sites can't work offline: open them outside the frame so the error is obvious
+    d.querySelectorAll('a[href^="http"]').forEach(a => { if (new URL(a.href).host !== location.host) a.target = '_blank'; });
+  } catch {}
+});
+/* Some collections (the zimgit "Nautilus" libraries) rewrite the address on every load, scroll and search,
+   which piles up extra Back steps. Make those rewrites replace the address instead of adding history. */
+const tame = w => {
+  try {
+    const N = w.Nautilus;
+    if (!N || !N.prototype || N.prototype.__ebx) return;
+    N.prototype.updateIdent = function (update) {
+      let p = this.parsedIdent();
+      p = w.Sugar ? w.Sugar.Object.merge(p, update) : Object.assign(p, update);
+      let opts = '';
+      if (p.kind == 'random') opts = (p.documentIds || []).join('.');
+      if (p.kind == 'search') opts = p.cursor.toString() + '_' + String(p.text || '').trim();
+      if (p.kind == 'list') opts = p.cursor.toString();
+      this.ident = p.kind + '-' + p.modalId + '-' + opts;
+      w.history.replaceState(w.history.state, '', '#' + this.ident);
+    };
+    N.prototype.__ebx = true;
+  } catch {}
+};
+// catch each new page in the frame as early as possible (before its scripts start rewriting the address)
+let seen = null, polling = 0;
+const watch = () => {
+  try {
+    const d = f.contentDocument;
+    if (d && d !== seen && d.URL !== 'about:blank') {
+      seen = d;
+      const w = f.contentWindow;
+      d.addEventListener('DOMContentLoaded', () => tame(w));
+      w.addEventListener('pagehide', () => { if (!polling) polling = setInterval(watch, 25); });
+      tame(w);
+    }
+  } catch {}
+};
+polling = setInterval(watch, 25);
+f.addEventListener('load', () => { watch(); tame(f.contentWindow); clearInterval(polling); polling = 0; });
+
+$('back').addEventListener('click', () => {
+  // links followed inside the article are part of the tab's history, so Back steps through them first
+  history.length > 1 ? history.back() : (location.href = b ? `index.html?book=${encodeURIComponent(b)}` : 'index.html');
+});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# box-hotspot-check : if the EmergencyBox hotspot isn't up, bring it up (run by a timer).
+set -u
+CON=emergencybox-hotspot
+state="$(nmcli -g GENERAL.STATE con show "$CON" 2>/dev/null || true)"
+[ "$state" = activated ] && exit 0
+echo "hotspot not up (state: ${state:-none}); starting it"
+rfkill unblock wifi 2>/dev/null || true
+nmcli radio wifi on 2>/dev/null || true
+if nmcli con up "$CON" >/dev/null 2>&1; then echo "hotspot started"; exit 0; fi
+echo "hotspot failed to start" >&2; exit 1

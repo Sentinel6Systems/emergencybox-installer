@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# box-printers : find driverless (IPP Everywhere) printers, USB through ipp-usb or on the network,
+# and add each as a shared queue so phones on the hotspot can print to it. Run by a timer.
+set -u
+export LC_ALL=C
+added=0
+while read -r uri; do
+  [ -n "$uri" ] || continue
+  case "$uri" in */printers/*|*/classes/*) continue ;; esac      # queues CUPS itself shares (ours)
+  lpstat -v 2>/dev/null | grep -qF " $uri" && continue          # already a queue
+  host="${uri#*://}"; host="${host%%/*}"; host="${host%%:*}"; host="${host%.local}"
+  name="Printer_$(printf '%s' "$host" | tr -c 'A-Za-z0-9_' '_' | cut -c1-40)"
+  if lpadmin -p "$name" -E -v "$uri" -m everywhere -o printer-is-shared=true 2>/dev/null; then
+    echo "added $name -> $uri"; added=$((added+1))
+  else
+    echo "couldn't add $uri (not driverless?)" >&2
+  fi
+done < <(ippfind -T 5 _ipp._tcp 2>/dev/null | sort -u)
+[ "$added" -gt 0 ] && lpstat -v 2>/dev/null | sed -n 's/^device for \([^:]*\):.*/queue: \1/p'
+exit 0

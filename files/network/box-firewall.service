@@ -1,0 +1,15 @@
+[Unit]
+Description=EmergencyBox firewall (nftables table inet emergencybox)
+DefaultDependencies=no
+Before=network-pre.target
+Wants=network-pre.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/box-firewall start
+ExecStop=/usr/local/sbin/box-firewall stop
+
+[Install]
+WantedBy=multi-user.target

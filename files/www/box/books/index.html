@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<title>Books & manuals · {{BOX_NAME}}</title>
+<link rel="stylesheet" href="../assets/box.css">
+</head>
+<body>
+<div class="bar"><div class="wrap">
+ <a class="mark" href="../index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg>EMERGENCYBOX</a>
+ <span class="crumb mono">/ BOOKS</span>
+ <div class="acts"><a class="pwr" href="../index.html">‹ <span>Home</span></a></div>
+</div></div>
+
+<main class="wrap">
+ <section class="page-head">
+  <h1>Books &amp; manuals</h1>
+  <p class="lede">Field manuals and ebooks. Read them here, or download a copy to your device.</p>
+  <form class="search" id="search" role="search">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+   <input id="q" type="search" placeholder="Search books…" aria-label="Search books" autocomplete="off">
+   <button type="submit">Search</button>
+  </form>
+  <div class="chips" id="chips" role="group" aria-label="Topics"></div>
+ </section>
+ <div class="label mono" id="count">BOOKS</div>
+ <div class="covers" id="grid"><p class="note"><span class="spin"></span>Loading…</p></div>
+ <div style="height:40px"></div>
+</main>
+
+<dialog id="bkDlg" class="wide" aria-label="Book">
+ <div class="bk" id="bkBody"></div>
+</dialog>
+
+<script src="../assets/box.js"></script>
+<script>document.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.classList.add('gone'); }, true);</script>
+<script>
+{
+const {onBox, $, esc, xml, kids, txt, store} = BOX;
+let BOOKS = [], topic = 'All';
+
+const DEMO = [
+ ['TC 3-21.76 — Ranger Handbook','T2COM',['Small Unit Tactics','Military Field Manuals']],
+ ['TC 21-3 — Soldier’s Handbook for Individual Operations and Survival in Cold-Weather Areas','TRADOC',['fieldcraft survival','Military Field Manuals']],
+ ['ST 31-91B — U.S. Army Special Forces Medical Handbook','U.S. Army',['Medical TCCC','Military Field Manuals']],
+ ['TC 3-21.60 — Visual Signals','TRADOC',['fieldcraft survival','Military Field Manuals']],
+ ['MCRP 3-40.3B — Radio Operator’s Handbook','U.S. Marine Corps',['Communications','Military Field Manuals']],
+ ['ATP 4-41 — Army Field Feeding and Class I Operations','TRADOC',['Logistics','Military Field Manuals']],
+].map(([title, author, tags], i) => ({id: i, title, author, tags, cover: null, files: [{href: '#', type: 'application/epub+zip', label: 'EPUB'}]}));
+
+async function loadAll() {
+  if (!onBox) return DEMO;
+  const out = []; let url = '/books/opds/new', guard = 0;
+  while (url && guard++ < 50) {
+    const d = await xml(url);
+    for (const e of d.getElementsByTagName('entry')) {
+      const links = kids(e, 'link');
+      const files = links.filter(l => (l.getAttribute('rel') || '').includes('acquisition'))
+        .map(l => ({href: l.getAttribute('href'), type: l.getAttribute('type') || '', label: l.getAttribute('title') || 'File'}));
+      const id = (files[0]?.href.match(/\/download\/(\d+)\//) || [])[1];
+      out.push({
+        id, title: txt(e, 'title'), author: kids(e, 'author').map(a => txt(a, 'name')).join(', '),
+        publisher: kids(e, 'publisher').map(a => txt(a, 'name')).join(', '),
+        tags: kids(e, 'category').map(c => c.getAttribute('label') || c.getAttribute('term')).filter(Boolean),
+        cover: (links.find(l => (l.getAttribute('rel') || '').endsWith('/thumbnail')) || links.find(l => (l.getAttribute('rel') || '').endsWith('/image')))?.getAttribute('href'),
+        files,
+      });
+    }
+    url = [...d.documentElement.children].find(c => c.localName === 'link' && c.getAttribute('rel') === 'next')?.getAttribute('href');
+  }
+  return out;
+}
+
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function render() {
+  const q = norm($('q').value.trim()), words = q.split(/\s+/).filter(Boolean);
+  const list = BOOKS.filter(b => (topic === 'All' || b.tags.includes(topic)) &&
+    words.every(w => norm(`${b.title} ${b.author} ${b.tags.join(' ')}`).includes(w)));
+  $('count').textContent = `${list.length} BOOK${list.length === 1 ? '' : 'S'}${topic !== 'All' ? ' · ' + topic.toUpperCase() : ''}`;
+  $('grid').innerHTML = list.map(b => `<button class="cv" type="button" data-id="${esc(b.id)}">
+    <span class="img">${b.cover ? `<img src="${esc(b.cover)}" alt="" loading="lazy">` : ''}</span>
+    <b>${esc(b.title)}</b><small>${esc(b.author)}</small></button>`).join('') || '<p class="note">No books match. Try other words or another topic.</p>';
+}
+function chips() {
+  const count = {};
+  BOOKS.forEach(b => b.tags.forEach(t => count[t] = (count[t] || 0) + 1));
+  const tags = Object.keys(count).filter(t => count[t] < BOOKS.length).sort((a, b) => count[b] - count[a] || a.localeCompare(b));
+  $('chips').innerHTML = ['All', ...tags].map(t => `<button class="chip" type="button" data-t="${esc(t)}" aria-pressed="${t === topic}">${esc(t)}${t === 'All' ? '' : ` <span class="muted">${count[t]}</span>`}</button>`).join('');
+}
+
+const dlg = $('bkDlg');
+function open(b) {
+  const epub = b.files.find(f => f.type.includes('epub'));
+  const pdf = b.files.find(f => f.type.includes('pdf'));
+  const last = store.get('ebx-pos-' + b.id);
+  $('bkBody').innerHTML = `${b.cover ? `<img src="${esc(b.cover)}" alt="">` : '<img alt="">'}
+   <div><h3>${esc(b.title)}</h3><p class="note">${esc(b.author)}${b.publisher ? ' · ' + esc(b.publisher) : ''}</p>
+   <div class="tags">${b.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>
+   <div class="row" style="justify-content:flex-start">
+    ${epub ? `<a class="btn warn" style="background:var(--sig);border-color:var(--sig);color:var(--bg)" href="read.html?id=${encodeURIComponent(b.id)}&t=${encodeURIComponent(b.title)}">${last ? 'Continue reading' : 'Read'}</a>` : ''}
+    ${pdf ? `<a class="btn" href="${esc(pdf.href)}">Open PDF</a>` : ''}
+    ${b.files.map(f => `<a class="btn" href="${esc(f.href)}" download>Download ${esc(f.label)}</a>`).join('')}
+    <button class="btn" type="button" data-close>Close</button>
+   </div></div>`;
+  dlg.showModal();
+}
+$('grid').addEventListener('click', e => { const c = e.target.closest('.cv'); if (c) open(BOOKS.find(b => String(b.id) === c.dataset.id)); });
+$('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; topic = c.dataset.t; chips(); render(); });
+$('search').addEventListener('submit', e => { e.preventDefault(); $('q').blur(); render(); });
+$('q').addEventListener('input', render);
+dlg.addEventListener('click', e => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.close(); });
+
+loadAll().then(list => { BOOKS = list.sort((a, b) => a.title.localeCompare(b.title)); chips(); render(); })
+  .catch(() => { $('grid').innerHTML = '<p class="note">The book library isn’t answering. Restart the box from the home page, then try again.</p>'; });
+}
+</script>
+</body>
+</html>

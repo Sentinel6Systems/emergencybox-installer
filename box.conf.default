@@ -1,0 +1,66 @@
+# EmergencyBox settings: the defaults every box starts from.
+# Don't edit this file. Copy it and edit the copy:
+#     cp box.conf.default box.conf
+# box.conf is read after this file, so it only needs the lines you change.
+# Values: letters, numbers, spaces and - _ . only (passwords: no spaces or quotes).
+
+# --- Name and address -------------------------------------------------------
+BOX_NAME="EmergencyBox"                    # shown on the pages and the Wi-Fi sign-in message
+BOX_SUBTITLE="Offline Information Server"
+HOSTNAME="box"                             # the address is HOSTNAME.DOMAIN -> http://box.lan
+DOMAIN="lan"
+
+# --- Wi-Fi hotspot ----------------------------------------------------------
+WIFI_SSID="EmergencyBox"
+WIFI_PASSWORD="stayready"                  # 8 to 63 characters
+WIFI_CHANNEL=6                             # 2.4 GHz channel: 1, 6 or 11
+COUNTRY="US"                               # two letters; sets the legal Wi-Fi channels
+HOTSPOT_IF=""                              # Wi-Fi adapter for the hotspot; empty = the first one found
+# The box's address on its own Wi-Fi. "auto" = picked at random on the first install
+# (10.x.x.1, away from your other networks) and kept from then on, so every box differs.
+# Or set one yourself, ending in .1 to .254 of a private /24, e.g. "10.77.42.1".
+HOTSPOT_IP="auto"
+
+# --- Accounts: the same two logins everywhere -------------------------------
+# Generic on purpose (a family box, not a public service). Change them on the admin page.
+ADMIN_PASSWORD="keepready"                 # "admin": admin page, Jellyfin, Calibre-Web
+USER_NAME="user"                           # everyone else in the family
+USER_PASSWORD="stayready"
+
+# --- Where the maps open ----------------------------------------------------
+# Latitude/longitude of your area; zoom 4 shows the whole US, 9 a county.
+MAP_LAT="39.83"
+MAP_LON="-98.58"
+MAP_ZOOM=4
+
+# --- Optional: clock --------------------------------------------------------
+TIMEZONE=""                                # your time zone, e.g. "Europe/Berlin"; empty = leave as is
+
+# --- Disk space (everything is on the one system disk) -----------------------
+SPACE_RESERVE_GB=5                         # uploads stop when free space would go below this
+MYFILES_MAX_GB=5                           # most "My files" may hold; 0 = only the reserve limits it
+
+# --- Maps (fieldmap-server) -------------------------------------------------
+FIELDMAP_REPO="https://github.com/Sentinel6Systems/fieldmap-server.git"
+FIELDMAP_BRANCH="main"                     # every run of the maps part takes this branch's latest
+FIELDMAP_DIR="/opt/fieldmap-server"        # not in a home folder (nginx must read it)
+
+# --- Movies (Jellyfin) ------------------------------------------------------
+# folder:Library name, one Jellyfin library each (folders under /srv/box/content/media)
+JELLYFIN_LIBRARIES="movies:Movies shows:Shows kids:Kids documentaries:Documentaries youtube:YouTube"
+
+# --- Games (EmulatorJS) -----------------------------------------------------
+# A downloaded EmulatorJS .7z to use instead of downloading it (offline installs). Empty = download.
+EMULATORJS_ARCHIVE=""
+
+# --- Raspberry Pi only ------------------------------------------------------
+PI_POWER_OFF_ON_HALT="yes"                 # fully power down on shutdown (EEPROM setting)
+# USB-to-SSD bridges that freeze in UAS mode; forced to plain usb-storage. Empty = none.
+# 0bda:9210 = Realtek RTL9210 (a common NVMe/SATA enclosure chip). Harmless if you don't have one.
+PI_USB_QUIRKS="0bda:9210:u"
+
+# --- What to install, in order (sudo ./install.sh runs all of them) ---------
+# Parts are added here as each one is built.
+# Planned: base network web portal landing myfiles library books jellyfin games maps printing
+#          apps office calendar notes power admin doctor
+MODULES="base network web portal landing myfiles library books jellyfin games maps printing admin doctor"

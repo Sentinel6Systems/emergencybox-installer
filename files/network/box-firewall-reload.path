@@ -1,0 +1,9 @@
+[Unit]
+Description=EmergencyBox firewall: watch /etc/emergencybox/firewall.d for changed port lists
+
+[Path]
+PathChanged=/etc/emergencybox/firewall.d
+Unit=box-firewall-reload.service
+
+[Install]
+WantedBy=multi-user.target

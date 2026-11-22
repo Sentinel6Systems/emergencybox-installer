@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Playing</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #eee; font-family: system-ui, sans-serif; }
+  #bar { position: fixed; top: 0; left: 0; z-index: 10; padding: .4rem .6rem; }
+  #bar a { color: #9cf; text-decoration: none; background: rgba(0,0,0,.6); padding: .3rem .6rem; border-radius: 6px; }
+  #wrap { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="bar"><a href="./">← Games</a></div>
+<div id="wrap"><div id="game"></div></div>
+<script>
+  const p = new URLSearchParams(location.search);
+  const core = p.get("core"), rom = p.get("rom");
+  document.title = rom ? rom.replace(/\.[^.]+$/, "") : "Games";
+  window.EJS_player = "#game";
+  window.EJS_core = core;
+  window.EJS_gameName = document.title;   // save states are keyed by this
+  window.EJS_gameUrl = "/games/roms/" + encodeURIComponent(core) + "/" + encodeURIComponent(rom);
+  window.EJS_pathtodata = "/games/emulatorjs/data/";  // local copy: no internet needed
+  window.EJS_language = "en-US";
+  const s = document.createElement("script");
+  s.src = window.EJS_pathtodata + "loader.js";
+  document.body.appendChild(s);
+</script>
+</body>
+</html>

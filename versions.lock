@@ -1,0 +1,22 @@
+# EmergencyBox versions.lock: every version a box is built from.
+# Modules read their pins from here; nothing floats ("latest", unpinned downloads, moving tags).
+# Pin from what the source offers today, not from memory. Change a pin only on purpose,
+# after the new version has passed a fresh install on a real box.
+
+# --- Operating system ---------------------------------------------------------
+OS_IMAGE_PI="2026-10-06-raspios-trixie-arm64-lite"   # Raspberry Pi OS Lite 64-bit, Debian 13
+RPI_IMAGER="2.0.12"                                  # older Imager (1.8.x) doesn't apply its settings
+
+# --- Library and Books ----------------------------------------------------------
+CALIBREWEB_VERSION="0.6.27"                          # pip, in /opt/calibre-web/venv
+
+# --- Jellyfin -------------------------------------------------------------------
+JELLYFIN_SERIES="12"                                 # repo.jellyfin.org; any 12.x, then held
+
+# --- Games ----------------------------------------------------------------------
+EMULATORJS_VERSION="4.2.3"
+EMULATORJS_SHA256="07d451bc06fa3ad04ab30d9b94eb63ac34ad0babee52d60357b002bde8f3850b"
+
+# --- Maps -----------------------------------------------------------------------
+# The one exception: fieldmap-server is not pinned. The maps part takes the latest of
+# FIELDMAP_BRANCH (box.conf) on every run, because it is updated often.

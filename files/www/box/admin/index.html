@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<meta name="robots" content="noindex">
+<title>Admin · {{BOX_NAME}}</title>
+<link rel="stylesheet" href="../assets/box.css">
+<style>
+/* page-only parts; shared look comes from box.css */
+.sec{border:1px solid var(--line);background:var(--panel);padding:18px;margin:16px 0}
+.sec h2{margin:0 0 4px;font-size:19px}
+.sec>.note{margin:0 0 14px}
+.f{display:grid;gap:6px;margin:0 0 12px}
+.f label{font-size:13px;letter-spacing:.06em;color:var(--muted)}
+.f input,.f select{font:inherit;font-size:17px;min-height:48px;padding:0 12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.f input:focus,.f select:focus{outline:none;border-color:var(--sig)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:0 14px}
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ck{display:flex;gap:10px;align-items:center;font-size:15px;margin:4px 0 12px}
+.ck input{width:20px;height:20px}
+.ctabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.ctabs button{font:inherit;font-size:14px;min-height:40px;padding:0 14px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer}
+.ctabs button[aria-selected=true]{border-color:var(--sig);color:var(--sig);background:var(--panel2)}
+.files{border:1px solid var(--line);margin-top:12px;max-height:min(55vh,520px);overflow:auto}
+.fl{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14.5px}
+.fl:last-child{border-bottom:0}
+.fl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl small{color:var(--muted);white-space:nowrap}
+.fl button{font:inherit;font-size:13px;min-height:34px;padding:0 10px;border:1px solid var(--line);background:none;color:var(--warn);cursor:pointer}
+.ups{display:grid;gap:6px;margin:12px 0 0}
+.up{border:1px solid var(--line);background:var(--bg);padding:8px 12px;font-size:14px}
+.up div{display:flex;gap:10px}.up div span:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up em{font-style:normal;color:var(--muted);white-space:nowrap}
+.up.err{border-color:var(--warn)}.up.err em{color:var(--warn);white-space:normal}
+.job{border:1px solid var(--sig);background:var(--panel2);padding:12px 14px;margin:16px 0}
+.job.err{border-color:var(--warn)}
+.job pre{max-height:200px;overflow:auto;font-size:12.5px;white-space:pre-wrap;margin:8px 0 0;color:var(--muted)}
+.msg{font-size:14.5px;margin:10px 0 0}.msg.err{color:var(--warn)}.msg.ok{color:var(--sig)}
+.login{max-width:420px;margin:40px auto}
+.empty{color:var(--muted);font-size:14px;padding:12px}
+</style>
+</head>
+<body>
+<div class="bar"><div class="wrap">
+ <a class="mark" href="../index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg>{{BOX_NAME_UPPER}}</a>
+ <span class="crumb mono">/ ADMIN</span>
+ <div class="acts"><button class="pwr hide" id="bOut" type="button"><span>Sign out</span></button><a class="pwr" href="../index.html">‹ <span>Home</span></a></div>
+</div></div>
+
+<main class="wrap">
+
+<section class="sec login hide" id="login">
+ <h2>Admin</h2>
+ <p class="note">Settings for the box owner. Sign in with the admin password.</p>
+ <form id="fLogin">
+  <div class="f"><label for="lPw">ADMIN PASSWORD</label><input id="lPw" type="password" autocomplete="current-password" required></div>
+  <button class="btn sig" type="submit">Sign in</button>
+  <p class="msg" id="lMsg"></p>
+ </form>
+</section>
+
+<div id="app" class="hide">
+ <section class="page-head">
+  <h1>Admin</h1>
+  <p class="lede">Change the Wi-Fi and passwords, add your own content, and back up My files.</p>
+ </section>
+
+ <div class="job hide" id="job"><b id="jobT"></b><pre id="jobLog"></pre></div>
+
+ <section class="sec" id="sWifi">
+  <h2>Wi-Fi</h2>
+  <p class="note">Everyone on the box's Wi-Fi is disconnected and has to join again with the new name or password.</p>
+  <form id="fWifi">
+   <div class="two">
+    <div class="f"><label for="wName">WI-FI NAME</label><input id="wName" maxlength="32" required autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="f"><label for="wPw">WI-FI PASSWORD (8 OR MORE)</label><input id="wPw" minlength="8" maxlength="63" required autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+   </div>
+   <button class="btn sig" type="submit">Save Wi-Fi</button>
+   <p class="msg" id="wMsg"></p>
+  </form>
+ </section>
+
+ <section class="sec" id="sPw">
+  <h2>Passwords</h2>
+  <p class="note">The user password is the one shown on the home page (Movies &amp; shows sign-in). The admin password opens this page and the Movies and Books admin.</p>
+  <form id="fPw">
+   <div class="two">
+    <div class="f"><label for="pUser">NEW USER PASSWORD (<span id="pUserName">user</span>)</label><input id="pUser" maxlength="63" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="leave empty to keep"></div>
+    <div class="f"><label for="pAdmin">NEW ADMIN PASSWORD (8 OR MORE)</label><input id="pAdmin" type="password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="leave empty to keep"></div>
+   </div>
+   <div class="f"><label for="pCur">CURRENT ADMIN PASSWORD</label><input id="pCur" type="password" required autocomplete="current-password"></div>
+   <button class="btn sig" type="submit">Save passwords</button>
+   <p class="msg" id="pMsg"></p>
+  </form>
+ </section>
+
+ <section class="sec" id="sContent">
+  <h2>Content</h2>
+  <p class="note" id="cSpace"></p>
+  <div class="ctabs" id="cTabs" role="tablist"></div>
+  <div id="cBody"></div>
+  <input type="file" id="fin" multiple hidden>
+  <div class="ups" id="ups"></div>
+ </section>
+
+ <section class="sec" id="sBackup">
+  <h2>Backup &amp; restore</h2>
+  <p class="note">Copies My files and the box settings to a USB drive. Plug the drive into the box first.
+   The backup holds the map server's keys for paired phones: keep the drive somewhere safe.</p>
+  <div id="bBody"></div>
+  <p class="msg" id="bMsg"></p>
+ </section>
+ <div style="height:40px"></div>
+</div>
+</main>
+
+<dialog id="cfDlg" aria-label="Confirm">
+ <div class="dlg">
+  <h3 id="cfT"></h3>
+  <p id="cfN"></p>
+  <div class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn warn" id="cfOk" type="button">OK</button></div>
+ </div>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const size = n => n >= 1e9 ? (n/1e9).toFixed(1)+' GB' : n >= 1e6 ? (n/1e6).toFixed(0)+' MB' : Math.max(1, Math.round(n/1e3))+' KB';
+const H = {'X-Box-Admin':'1','Content-Type':'application/json'};
+let S = null, tab = null, polling = null;
+
+async function api(path, body) {
+  const r = await fetch('/api/admin/' + path, body === undefined ? {credentials:'same-origin'} :
+    {method:'POST', headers:H, credentials:'same-origin', body:JSON.stringify(body)});
+  const d = await r.json().catch(() => ({error:'The box gave no answer.'}));
+  if (r.status === 401 && path !== 'login' && path !== 'passwords') { show(false); }
+  if (!r.ok) throw new Error(d.error || ('Error ' + r.status));
+  return d;
+}
+const msg = (el, t, ok) => { el.textContent = t || ''; el.className = 'msg ' + (t ? (ok ? 'ok' : 'err') : ''); };
+function confirmDlg(t, n, b) {
+  return new Promise(res => { $('cfT').textContent = t; $('cfN').textContent = n; $('cfOk').textContent = b;
+    const d = $('cfDlg'); d.showModal();
+    $('cfOk').onclick = () => { d.close(); res(true); };
+    d.querySelector('[data-close]').onclick = () => { d.close(); res(false); }; });
+}
+function show(signedIn) {
+  $('login').classList.toggle('hide', signedIn); $('app').classList.toggle('hide', !signedIn);
+  $('bOut').classList.toggle('hide', !signedIn);
+  if (!signedIn) setTimeout(() => $('lPw').focus(), 50);
+}
+
+async function load() {
+  const d = await api('state');
+  if (!d.signed_in) return show(false);
+  S = d; show(true);
+  if (!$('wName').value) { $('wName').value = d.settings.wifi_ssid; $('wPw').value = d.settings.wifi_password; }
+  $('pUserName').textContent = d.settings.user_name;
+  renderContent(); renderBackup(); renderJob(d.job);
+}
+
+// ----- sign in / out
+$('fLogin').onsubmit = async e => { e.preventDefault();
+  try { await api('login', {password:$('lPw').value}); $('lPw').value = ''; msg($('lMsg')); load(); }
+  catch (err) { msg($('lMsg'), err.message); } };
+$('bOut').onclick = async () => { await api('logout', {}).catch(() => {}); S = null; show(false); };
+
+// ----- Wi-Fi and passwords
+$('fWifi').onsubmit = async e => { e.preventDefault();
+  if (!await confirmDlg('Change the Wi-Fi?', 'Everyone on the Wi-Fi, including you, is disconnected. Join "' + $('wName').value + '" with the new password, then open the box again.', 'Change Wi-Fi')) return;
+  try { const d = await api('wifi', {ssid:$('wName').value.trim(), password:$('wPw').value}); msg($('wMsg'), d.message, true); poll(); }
+  catch (err) { msg($('wMsg'), err.message); } };
+$('fPw').onsubmit = async e => { e.preventDefault();
+  try { const d = await api('passwords', {current:$('pCur').value, admin:$('pAdmin').value, user:$('pUser').value});
+    msg($('pMsg'), d.message, true); $('pCur').value = $('pAdmin').value = $('pUser').value = ''; load(); }
+  catch (err) { msg($('pMsg'), err.message); } };
+
+// ----- content
+const KINDS = [
+  {k:'library', part:'library', t:'Library', n:'ZIM files: Wikipedia, medical, repair and other offline collections (download them from library.kiwix.org on another computer).'},
+  {k:'movies', part:'movies', t:'Movies & shows', n:'Video files go into a library. For a show, type the show\'s name as the folder so its episodes stay together.'},
+  {k:'books', part:'books', t:'Books', n:''},
+  {k:'maps', part:'maps', t:'Maps', n:'Map layer files (.mbtiles) built with fieldmap-server, named like its layers. The map server restarts to pick them up.'},
+  {k:'games', part:'games', t:'Games', n:'Game ROM files, one folder per game system.'},
+];
+function renderContent() {
+  const have = KINDS.filter(x => S.parts.includes(x.part));
+  if (!have.find(x => x.k === tab)) tab = have.length ? have[0].k : null;
+  $('cTabs').innerHTML = have.map(x => `<button type="button" role="tab" data-k="${x.k}" aria-selected="${x.k === tab}">${esc(x.t)}</button>`).join('');
+  $('cTabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.k; renderContent(); });
+  const sp = S.content.space;
+  $('cSpace').textContent = sp ? `Content storage: ${size(sp.free)} free of ${size(sp.total)}.` : '';
+  const K = KINDS.find(x => x.k === tab);
+  if (!K) { $('cBody').innerHTML = '<p class="empty">No content parts are installed.</p>'; return; }
+  if (tab === 'books') {
+    $('cBody').innerHTML = `<p class="note">Books are added in the Books admin: sign in as <b>admin</b> with the admin password, then use <b>Upload</b> (EPUB, PDF, MOBI, AZW3). Covers and titles are read from the files.</p>
+      <a class="btn sig" href="/books/login" target="_blank" rel="noopener">Open Books admin</a>`;
+    return;
+  }
+  const C = S.content[tab];
+  let pick = '';
+  if (tab === 'games') pick = `<div class="f"><label for="cSub">GAME SYSTEM</label><select id="cSub">${S.systems.map(s => `<option>${esc(s)}</option>`).join('')}</select></div>`;
+  if (tab === 'movies') pick = `<div class="two"><div class="f"><label for="cSub">LIBRARY</label><select id="cSub">${S.libraries.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select></div>
+     <div class="f"><label for="cFolder">FOLDER (A SHOW'S OR MOVIE'S NAME, OPTIONAL)</label><input id="cFolder" maxlength="80" autocomplete="off" spellcheck="false" placeholder="e.g. Planet Earth (2006)"></div></div>`;
+  if (tab === 'maps') pick = `<p class="note mono">${S.map_layers.map(m => m + '.mbtiles').join(' · ')}</p>`;
+  const groups = C.groups.map(g => {
+    const rows = g.files.map(f => `<div class="fl"><span title="${esc(f.name)}">${esc(f.name)}</span><small>${size(f.size)}</small><button type="button" data-g="${esc(g.id)}" data-n="${esc(f.name)}">Delete</button></div>`).join('');
+    return (C.groups.length > 1 ? `<p class="note" style="margin:12px 0 0"><b>${esc(g.name)}</b> · ${g.files.length} file${g.files.length === 1 ? '' : 's'}</p>` : '') +
+      `<div class="files">${rows || '<p class="empty">Nothing here yet.</p>'}</div>`;
+  }).join('');
+  $('cBody').innerHTML = `<p class="note">${esc(K.n)}</p>${pick}<button class="btn sig" id="bUp" type="button">＋ Add files</button>${groups}`;
+  $('bUp').onclick = () => { $('fin').accept = {library:'.zim', maps:'.mbtiles', movies:'video/*,.mkv,.srt,.vtt,.ass'}[tab] || ''; $('fin').click(); };
+  $('cBody').querySelectorAll('.fl button').forEach(b => b.onclick = async () => {
+    if (!await confirmDlg('Delete this file?', b.dataset.n, 'Delete')) return;
+    try { const d = await api('delete', {kind:tab, sub:b.dataset.g, name:b.dataset.n}); toastUp(d.message || 'Deleted.'); load(); }
+    catch (err) { toastUp(err.message, true); } });
+}
+function toastUp(t, bad) { const u = document.createElement('div'); u.className = 'up' + (bad ? ' err' : ''); u.innerHTML = `<div><span>${esc(t)}</span></div>`; $('ups').prepend(u); setTimeout(() => u.remove(), 8000); }
+
+$('fin').onchange = async () => {
+  const files = [...$('fin').files]; $('fin').value = '';
+  let sub = '';
+  if (tab === 'games') sub = $('cSub').value;
+  if (tab === 'movies') { sub = $('cSub').value; const f = $('cFolder').value.trim(); if (f) sub += '/' + f; }
+  for (const f of files) await upload(f, tab, sub);
+  load();
+};
+async function upload(file, kind, sub) {
+  const u = document.createElement('div'); u.className = 'up';
+  u.innerHTML = `<div><span>${esc(file.name)}</span><em>checking…</em></div><div class="meter"><i></i></div>`;
+  $('ups').append(u);
+  try { await api('upload-check', {kind, sub, name:file.name, size:file.size}); }
+  catch (err) { u.classList.add('err'); u.querySelector('em').textContent = err.message; return; }
+  return new Promise(res => {
+    const x = new XMLHttpRequest();
+    x.open('POST', `/api/admin/upload?kind=${encodeURIComponent(kind)}&sub=${encodeURIComponent(sub)}&name=${encodeURIComponent(file.name)}`);
+    x.setRequestHeader('X-Box-Admin', '1');
+    x.upload.onprogress = e => { if (e.lengthComputable) { const p = Math.round(e.loaded * 100 / e.total);
+      u.querySelector('em').textContent = p + '% of ' + size(e.total); u.querySelector('i').style.width = p + '%'; } };
+    const done = (ok, t) => { u.classList.toggle('err', !ok); u.querySelector('em').textContent = t; if (ok) setTimeout(() => u.remove(), 6000); res(); };
+    x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) {}
+      x.status === 200 ? done(true, d.message || 'Added') : done(false, d.error || 'Error ' + x.status);
+      if (x.status === 200 && kind === 'maps') poll(); };
+    x.onerror = () => done(false, 'The connection broke off; try again.');
+    x.send(file);
+  });
+}
+
+// ----- backup & restore
+function renderBackup() {
+  const ds = S.drives;
+  if (!ds.length) { $('bBody').innerHTML = '<p class="empty">No USB drive is plugged in. Plug one into the box, then reload this page.</p>'; return; }
+  $('bBody').innerHTML = `<div class="f"><label for="bDrive">USB DRIVE</label><select id="bDrive">${ds.map(d => `<option value="${d.id}">${d.id} · ${size(d.free || 0)} free${d.fs === 'vfat' ? ' · FAT32' : ''}</option>`).join('')}</select></div>
+    <div class="row2"><button class="btn sig" id="bBack" type="button">Back up now</button></div>
+    <div id="bRest"></div>`;
+  const rest = () => { const d = ds.find(x => x.id === $('bDrive').value);
+    $('bRest').innerHTML = d.backups.length ? `<div class="f" style="margin-top:16px"><label for="bFile">RESTORE FROM</label><select id="bFile">${d.backups.map(b => `<option>${esc(b)}</option>`).join('')}</select></div>
+      <label class="ck"><input type="checkbox" id="bSet"> Also restore the settings: Wi-Fi name and password, user password, and the map server's phone pairing</label>
+      <button class="btn" id="bDoRest" type="button">Restore</button>` : '<p class="note" style="margin-top:14px">No backups on this drive yet.</p>';
+    if ($('bDoRest')) $('bDoRest').onclick = async () => {
+      if (!await confirmDlg('Restore this backup?', 'Files in the backup replace files with the same name in My files. Other files stay.' + ($('bSet').checked ? ' Phones paired with the backed-up box work again, and the Wi-Fi restarts with the backup\'s settings.' : ''), 'Restore')) return;
+      try { const r = await api('restore', {drive:$('bDrive').value, file:$('bFile').value, settings:$('bSet').checked}); msg($('bMsg'), r.message, true); waitMsg = 'bMsg'; poll(); }
+      catch (err) { msg($('bMsg'), err.message); } }; };
+  $('bDrive').onchange = rest; rest();
+  $('bBack').onclick = async () => { try { const r = await api('backup', {drive:$('bDrive').value}); msg($('bMsg'), r.message, true); waitMsg = 'bMsg'; poll(); }
+    catch (err) { msg($('bMsg'), err.message); } };
+}
+
+// ----- background jobs
+let waitMsg = null;   // the message line under the button that started the running job
+function renderJob(j) {
+  if (!j) { $('job').classList.add('hide'); return; }
+  if (!j.running && waitMsg && $(waitMsg)) {   // the job ended: say how, where the owner is looking
+    const last = j.log.trim().split('\n').pop() || '';
+    msg($(waitMsg), j.ok ? (last || 'Done.') : 'Stopped with a problem: ' + last, j.ok);
+    waitMsg = null;
+  }
+  $('job').classList.remove('hide'); $('job').classList.toggle('err', !j.running && !j.ok);
+  $('jobT').textContent = j.name + (j.running ? ' …' : j.ok ? ': done' : ': stopped with a problem');
+  $('jobLog').textContent = j.log.trim().split('\n').slice(-30).join('\n');
+  if (j.running) poll();
+}
+function poll() {
+  if (polling) return;
+  polling = setInterval(async () => {
+    try { const d = await api('job'); renderJob(d.job);
+      if (d.job && !d.job.running) { clearInterval(polling); polling = null; load(); } }
+    catch (e) { /* the Wi-Fi may be restarting: keep trying */ }
+  }, 2000);
+}
+
+load().catch(() => show(false));
+</script>
+</body>
+</html>

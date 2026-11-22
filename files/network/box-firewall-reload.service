@@ -1,0 +1,7 @@
+[Unit]
+Description=EmergencyBox firewall: reload after a change in /etc/emergencybox/firewall.d
+After=box-firewall.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/box-firewall start

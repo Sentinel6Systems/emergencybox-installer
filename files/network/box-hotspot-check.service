@@ -1,0 +1,8 @@
+[Unit]
+Description=EmergencyBox: make sure the hotspot is up
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/box-hotspot-check

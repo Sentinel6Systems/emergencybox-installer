@@ -1,0 +1,18 @@
+# Names phones and computers use to check for internet. Used twice: DNS sends them to the
+# box (network module), nginx hands them to the portal message (web module). One per line.
+connectivitycheck.gstatic.com
+connectivitycheck.android.com
+clients3.google.com
+www.google.com
+play.googleapis.com
+captive.apple.com
+appleiphonecell.com
+www.appleiphonecell.com
+thinkdifferent.us
+www.thinkdifferent.us
+www.msftconnecttest.com
+www.msftncsi.com
+ipv6.msftconnecttest.com
+detectportal.firefox.com
+nmcheck.gnome.org
+captive.lan

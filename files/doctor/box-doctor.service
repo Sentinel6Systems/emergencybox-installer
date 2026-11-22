@@ -1,0 +1,7 @@
+[Unit]
+Description=EmergencyBox self-check (box-doctor)
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/box-doctor -q

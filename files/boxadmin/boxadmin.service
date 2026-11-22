@@ -1,0 +1,25 @@
+[Unit]
+Description=EmergencyBox admin page API (settings, content, backups)
+After=local-fs.target network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/boxadmin/boxadmin.py
+# new folders stay group-writable, so the owner can still copy into them without sudo
+UMask=0002
+Environment=BOXADMIN_INSTALLER={{HERE}}
+Environment=BOXADMIN_CONTENT_RW={{CONTENT_DIR}}
+Environment=BOXADMIN_MYFILES={{MYFILES_DIR}}
+Environment=BOXADMIN_MAPS={{FIELDMAP_DIR}}/data
+Environment=BOXADMIN_RESERVE_GB={{SPACE_RESERVE_GB}}
+Environment=BOXADMIN_CALIBRE_CONF=/var/lib/calibre-web
+Environment="BOXADMIN_JELLYFIN_LIBRARIES={{JELLYFIN_LIBRARIES}}"
+Restart=always
+RestartSec=3
+# Runs as root: it rewrites the installer's box.conf, runs installer parts (Wi-Fi, home page),
+# writes to the content folders and USB drives. It only listens on 127.0.0.1, behind nginx,
+# and everything but sign-in needs the admin password's session.
+PrivateTmp=yes
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

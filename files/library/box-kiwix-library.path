@@ -1,0 +1,9 @@
+[Unit]
+Description=EmergencyBox Library: rebuild the list when ZIM files are added or removed
+
+[Path]
+PathChanged={{ZIM_DIR}}
+Unit=box-kiwix-library.service
+
+[Install]
+WantedBy=multi-user.target

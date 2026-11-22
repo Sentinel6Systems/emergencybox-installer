@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# box-usb mount|umount DEV : mount a USB stick's partition at /media/usbN for My files, or unmount it.
+# Started by udev through box-usb@DEV.service (stopped again when the stick is pulled out).
+# Never touches the disk the box runs from (that SSD is on USB too).
+set -u
+ACT="${1:-}"; DEV="${2:-}"; [ -n "$DEV" ] || { echo "usage: box-usb mount|umount sdXN" >&2; exit 2; }
+DEVP="/dev/$DEV"; MAP="/run/emergencybox/usb"; mkdir -p "$MAP"
+
+disk_of() { lsblk -no PKNAME "$1" 2>/dev/null | head -1; }
+
+case "$ACT" in
+  mount)
+    root_src="$(findmnt -no SOURCE /)"; mine="$(disk_of "$DEVP")"; sysd="$(disk_of "$root_src")"
+    # the disk the box runs from (only when both are known: an empty answer must not match)
+    if [ -n "$mine" ] && [ -n "$sysd" ] && [ "$mine" = "$sysd" ]; then echo "$DEV is on the system disk; ignored"; exit 0; fi
+    [ "/dev/$DEV" = "$root_src" ] && { echo "$DEV is the system disk; ignored"; exit 0; }
+    for l in rootfs bootfs; do
+      [ "$(blkid -s LABEL -o value "$DEVP" 2>/dev/null)" = "$l" ] && { echo "$DEV is a box disk ($l); ignored"; exit 0; }
+    done
+    fs="$(blkid -s TYPE -o value "$DEVP" 2>/dev/null)"
+    case "$fs" in
+      vfat)  opts="rw,noatime,nodev,nosuid,noexec,flush,uid=0,gid=0,umask=0000,utf8,shortname=mixed"; t=vfat ;;
+      exfat) opts="rw,noatime,nodev,nosuid,noexec,uid=0,gid=0,umask=0000"; t=exfat ;;
+      ntfs)  opts="rw,noatime,nodev,nosuid,noexec,uid=0,gid=0,umask=0000,big_writes"; t=ntfs-3g ;;
+      *) echo "$DEV: $fs isn't a USB-stick format we mount (FAT32, exFAT, NTFS)"; exit 0 ;;
+    esac
+    findmnt -rno TARGET "$DEVP" >/dev/null 2>&1 && { echo "$DEV already mounted"; exit 0; }
+    for n in 0 1 2 3 4 5 6 7; do
+      mp="/media/usb$n"
+      mountpoint -q "$mp" && continue
+      mkdir -p "$mp"
+      if mount -t "$t" -o "$opts" "$DEVP" "$mp"; then
+        echo "$mp" > "$MAP/$DEV"; echo "$DEV ($fs) mounted at $mp"; exit 0
+      fi
+      rmdir "$mp" 2>/dev/null; echo "$DEV: mount failed" >&2; exit 1
+    done
+    echo "$DEV: no free /media/usbN" >&2; exit 1 ;;
+  umount)
+    mp="$(cat "$MAP/$DEV" 2>/dev/null || findmnt -rno TARGET "$DEVP" 2>/dev/null | head -1)"
+    [ -n "$mp" ] || exit 0
+    mountpoint -q "$mp" && { umount "$mp" 2>/dev/null || umount -l "$mp"; }
+    rmdir "$mp" 2>/dev/null; rm -f "$MAP/$DEV"; echo "$DEV unmounted from $mp" ;;
+  *) echo "usage: box-usb mount|umount sdXN" >&2; exit 2 ;;
+esac

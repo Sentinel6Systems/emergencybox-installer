@@ -1,0 +1,8 @@
+[Unit]
+Description=EmergencyBox: share driverless printers with the hotspot
+After=cups.service avahi-daemon.service
+Wants=cups.service avahi-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/box-printers

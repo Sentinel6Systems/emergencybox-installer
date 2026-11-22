@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e110f">
+<title>Library · {{BOX_NAME}}</title>
+<link rel="stylesheet" href="../assets/box.css">
+</head>
+<body>
+<div class="bar"><div class="wrap">
+ <a class="mark" href="../index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg>EMERGENCYBOX</a>
+ <span class="crumb mono">/ LIBRARY</span>
+ <div class="acts"><a class="pwr" href="../index.html">‹ <span>Home</span></a></div>
+</div></div>
+
+<main class="wrap">
+ <section class="page-head">
+  <h1 id="h1">Library</h1>
+  <p class="lede" id="lede">Medical, survival and how-to guides, plus all of Wikipedia. Search everything, or open a collection.</p>
+  <form class="search" id="search" role="search">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+   <input id="q" type="search" placeholder="Search the library…" aria-label="Search" autocomplete="off">
+   <button type="submit">Search</button>
+  </form>
+  <div class="bookbar" id="bookbar" hidden></div>
+ </section>
+
+ <section id="results" aria-live="polite"></section>
+
+ <section id="shelf">
+  <div class="label mono">COLLECTIONS</div>
+  <div class="books" id="books"><p class="note"><span class="spin"></span>Loading…</p></div>
+ </section>
+ <div style="height:40px"></div>
+</main>
+
+<script src="../assets/box.js"></script>
+<script>document.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.classList.add('gone'); }, true);</script>
+<script>
+{
+const {onBox, $, esc, decode, snippet, xml, kids, kid, txt, params, go} = BOX;
+const K = '/kiwix';
+// display order: life-safety first, big general Wikipedia last
+const ORDER = ['wikipedia_en_medicine','zimgit-medicine_en','zimgit-post-disaster_en','zimgit-water_en','zimgit-food-preparation_en','trueprepper.com_en_all','appropedia_en_all','zimgit-knots_en','wikipedia_en_all'];
+let BOOKS = [];
+
+const DEMO = [
+ ['wikipedia_en_medicine','WikiMed Medical Encyclopedia','The largest medical encyclopedia, from Wikipedia',1],
+ ['zimgit-medicine_en','Medical Library','A collection of books pertaining to field and emergency medicine.',0],
+ ['zimgit-post-disaster_en','Post Disaster Resource Library','A collection of post-disaster resources.',0],
+ ['zimgit-water_en','Water Treatment Library','Resources about water collection and purification',0],
+ ['zimgit-food-preparation_en','Food for Preppers','A collection of recipes and techniques for preparing food.',0],
+ ['trueprepper.com_en_all','True prepper','Prepping Your Way',1],
+ ['appropedia_en_all','Appropedia','Shared knowledge to build rich, sustainable lives',1],
+ ['zimgit-knots_en','A Library of Knots','Illustrated resources on all types of knots, ladders, sutures, etc.',0],
+ ['wikipedia_en_all','Wikipedia','The free encyclopedia',1],
+].map(([name,title,summary,ft],i)=>({id:'demo'+i,name,title,summary,ft:!!ft,stem:name,icon:null,count:null}));
+
+async function loadBooks() {
+  if (!onBox) return DEMO;
+  const doc = await xml(`${K}/catalog/v2/entries?count=-1`);
+  return [...doc.getElementsByTagName('entry')].map(e => {
+    const links = kids(e, 'link');
+    const html = links.find(l => (l.getAttribute('type')||'').startsWith('text/html'));
+    const thumb = links.find(l => (l.getAttribute('rel')||'').includes('thumbnail'));
+    const tags = txt(e, 'tags');
+    const href = html?.getAttribute('href') || '';
+    return {
+      id: txt(e, 'id').replace('urn:uuid:', ''), name: txt(e, 'name'), title: txt(e, 'title'), summary: txt(e, 'summary'),
+      ft: !/_ftindex:no/.test(tags), href, stem: href.split('/').filter(Boolean).pop(),
+      icon: thumb?.getAttribute('href'), count: +txt(e, 'articleCount') || null,
+    };
+  }).filter(b => b.name !== 'test' && b.title.toLowerCase() !== 'test')
+    .sort((a, b) => (ORDER.indexOf(a.name) + 99) % 99 - (ORDER.indexOf(b.name) + 99) % 99 || a.title.localeCompare(b.title));
+}
+
+const readUrl = (u, b) => `read.html?u=${encodeURIComponent(u)}&b=${encodeURIComponent(b.id)}`;
+const mainUrl = b => readUrl(b.href || `${K}/content/${b.stem}/`, b);
+const icon = b => b.icon ? `<img src="${esc(b.icon)}" alt="" loading="lazy">` : `<span class="ph">${esc(b.title[0])}</span>`;
+
+function renderShelf() {
+  $('books').innerHTML = BOOKS.map(b => `<a class="zb" href="${mainUrl(b)}">
+    ${icon(b)}<h3>${esc(b.title)}</h3><p>${esc(b.summary)}</p>
+    <span class="meta mono">${b.ft ? 'FULL-TEXT SEARCH' : 'TITLE SEARCH'}</span></a>`).join('') || '<p class="note">No collections found.</p>';
+}
+
+/* ---- search ---- */
+async function searchBook(b, q, n, start = 0) {
+  if (!onBox) return {total: 2, hits: [
+    {title: `${q[0].toUpperCase()+q.slice(1)} (sample)`, url: '#', snip: `Sample result in ${esc(b.title)} about <b>${esc(q)}</b>. Live results appear on the box.`},
+    {title: `Treating ${q} injuries`, url: '#', snip: `How to recognise and handle <b>${esc(q)}</b> problems when help is far away.`}]};
+  if (b.ft) {
+    const d = await xml(`${K}/search?books.id=${b.id}&pattern=${encodeURIComponent(q)}&format=xml&pageLength=${n}&start=${start}`);
+    const items = [...d.getElementsByTagName('item')];
+    const total = +(d.getElementsByTagName('totalResults')[0]?.textContent || items.length);
+    return {total, hits: items.map(it => ({title: txt(it, 'title'), url: txt(it, 'link'), snip: snippet(txt(it, 'description'))}))};
+  }
+  const r = await fetch(`${K}/suggest?content=${encodeURIComponent(b.stem)}&term=${encodeURIComponent(q)}&count=${n + 1}`, {cache: 'no-store'});
+  const list = (await r.json()).filter(x => x.kind === 'path');
+  return {total: list.length, title: true, hits: list.slice(0, n).map(x => ({
+    title: decode(x.value), url: `${K}/content/${b.stem}/${decode(x.path).split('/').map(encodeURIComponent).join('/')}`, snip: ''}))};
+}
+
+const hitHtml = (h, b) => `<a class="hit" href="${h.url === '#' ? '#' : readUrl(h.url, b)}"><b class="t">${esc(h.title)}</b>${h.snip ? `<span>${h.snip}</span>` : ''}</a>`;
+
+let token = 0;
+async function searchAll(q) {
+  const my = ++token;
+  $('results').innerHTML = `<div class="label mono">RESULTS FOR “${esc(q).toUpperCase()}”</div><p class="note" id="sstat"><span class="spin"></span>Searching ${BOOKS.length} collections…</p>` +
+    BOOKS.map(b => `<div class="group" id="g-${b.id}" hidden></div>`).join('');
+  let done = 0, found = 0;
+  const queue = [...BOOKS];
+  const worker = async () => {
+    while (queue.length) {
+      const b = queue.shift();
+      try {
+        const r = await searchBook(b, q, 3);
+        if (my !== token) return;
+        if (r.hits.length) {
+          found++;
+          const g = $('g-' + b.id);
+          g.hidden = false;
+          g.innerHTML = `<div class="group-h"><b>${esc(b.title)}</b><span class="note">${r.title ? 'matching titles' : `${r.total.toLocaleString()} result${r.total === 1 ? '' : 's'}`}</span>
+            <a href="?book=${encodeURIComponent(b.id)}&q=${encodeURIComponent(q)}">More in this collection ›</a></div>${r.hits.map(h => hitHtml(h, b)).join('')}`;
+        }
+      } catch {}
+      if (my !== token) return;
+      done++;
+      $('sstat').innerHTML = done < BOOKS.length ? `<span class="spin"></span>Searched ${done} of ${BOOKS.length} collections…` : (found ? '' : 'Nothing found. Try fewer or different words.');
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);   // three at a time: easy on the Pi
+}
+
+async function searchIn(b, q, start = 0) {
+  const my = ++token;
+  if (!start) $('results').innerHTML = `<div class="label mono">RESULTS IN ${esc(b.title).toUpperCase()}</div><div id="hits"><p class="note"><span class="spin"></span>Searching…</p></div>`;
+  try {
+    const r = await searchBook(b, q, 25, start);
+    if (my !== token) return;
+    const box = $('hits');
+    if (!start) box.innerHTML = '';
+    $('more')?.remove();
+    box.insertAdjacentHTML('beforeend', r.hits.map(h => hitHtml(h, b)).join('') || '<p class="note">Nothing found. Try fewer or different words.</p>');
+    if (!r.title && start + r.hits.length < r.total)
+      box.insertAdjacentHTML('beforeend', `<button class="btn" id="more" type="button" style="margin-top:10px">Show more (${(r.total - start - r.hits.length).toLocaleString()} left)</button>`);
+    $('more')?.addEventListener('click', () => searchIn(b, q, start + r.hits.length));
+  } catch { $('hits').innerHTML = '<p class="note">Search failed. Try again.</p>'; }
+}
+
+/* ---- views ---- */
+function route() {
+  const p = params(), q = (p.get('q') || '').trim(), b = BOOKS.find(x => x.id === p.get('book'));
+  $('q').value = q;
+  if (b) {
+    $('h1').textContent = b.title;
+    $('lede').textContent = b.summary;
+    $('q').placeholder = b.ft ? `Search ${b.title}…` : `Search titles in ${b.title}…`;
+    $('bookbar').hidden = false;
+    $('bookbar').innerHTML = `<a class="btn sig" href="${mainUrl(b)}">Open collection</a>` +
+      `<a class="btn" href="index.html">All collections</a>`;
+    $('shelf').hidden = true;
+    q ? searchIn(b, q) : ($('results').innerHTML = '', token++, $('q').focus());
+    document.title = `${b.title} · Library`;
+  } else {
+    $('h1').textContent = 'Library';
+    $('lede').textContent = 'Medical, survival and how-to guides, plus all of Wikipedia. Search everything, or open a collection.';
+    $('q').placeholder = 'Search the library…';
+    $('bookbar').hidden = true;
+    $('shelf').hidden = false;
+    q ? searchAll(q) : ($('results').innerHTML = '', token++);
+    document.title = 'Library · {{BOX_NAME}}';
+  }
+  window.scrollTo(0, 0);
+}
+
+$('search').addEventListener('submit', e => {
+  e.preventDefault();
+  const p = params(), q = $('q').value.trim();
+  q ? p.set('q', q) : p.delete('q');
+  go(p); route();
+  $('q').blur();
+});
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="?"], a[href="index.html"]');
+  if (!a || a.closest('#books')) return;
+  e.preventDefault(); go(new URLSearchParams(a.getAttribute('href').replace(/^index\.html\??|^\?/, ''))); route();
+});
+addEventListener('popstate', route);
+
+loadBooks().then(list => { BOOKS = list; renderShelf(); route(); })
+  .catch(() => { $('books').innerHTML = '<p class="note">The library isn’t answering. Restart the box from the home page, then try again.</p>'; });
+}
+</script>
+</body>
+</html>
