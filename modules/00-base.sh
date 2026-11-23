@@ -61,12 +61,17 @@ done
 systemctl disable --now unattended-upgrades.service >/dev/null 2>&1 || true
 ok "off: plocate, man-db and apt timers, unattended upgrades"
 
-removed=""
-for p in cloud-init needrestart; do
-  dpkg -s "$p" >/dev/null 2>&1 && { DEBIAN_FRONTEND=noninteractive apt-get purge -y -q "$p" >/dev/null 2>&1 || die "couldn't remove $p"; removed+=" $p"; }
-done
-[ -d /etc/cloud ] && touch /etc/cloud/cloud-init.disabled
-ok "removed:${removed:- nothing left to remove (cloud-init, needrestart)}"
+if dpkg -s needrestart >/dev/null 2>&1; then
+  apt_get purge -y -q needrestart >/var/log/emergencybox-apt.log 2>&1 \
+    || { tail -20 /var/log/emergencybox-apt.log; die "couldn't remove needrestart"; }
+  ok "removed: needrestart"
+fi
+# cloud-init: turned off, not removed. On Raspberry Pi OS it holds the first user's sudo
+# setting from Imager (/etc/sudoers.d/90-cloud-init-users); removing it takes that away.
+if [ -d /etc/cloud ] && [ ! -e /etc/cloud/cloud-init.disabled ]; then
+  touch /etc/cloud/cloud-init.disabled
+  ok "cloud-init: off from the next start"
+fi
 
 J="$(mktemp)"
 cat > "$J" <<'EOF'

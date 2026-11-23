@@ -247,15 +247,19 @@ part_installed() { install -d "$BOX_ETC/parts"; [ -f "$BOX_ETC/parts/$1" ] || da
 # http_code PATH [curl args...] : status code of http://127.0.0.1PATH through nginx
 http_code() { local p="$1"; shift; curl -s -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $ADDRESS" "$@" "http://127.0.0.1$p"; }
 
+# apt_get ARGS... : apt-get that waits up to 5 minutes for another apt or dpkg run to finish
+# (the daily apt job starts soon after the first boot, or the owner may be installing something).
+apt_get() { DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 "$@"; }
+
 apt_install() {
   local missing=() p
   for p in "$@"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
   [ ${#missing[@]} -eq 0 ] && return 0
   online || die "No internet: ${missing[*]} must be downloaded. Connect Ethernet and run this again."
   local log=/var/log/emergencybox-apt.log
-  if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing[@]}" >"$log" 2>&1; then
-    apt-get update -q >"$log" 2>&1 || true
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing[@]}" >"$log" 2>&1 \
+  if ! apt_get install -y -q "${missing[@]}" >"$log" 2>&1; then
+    apt_get update -q >"$log" 2>&1 || true
+    apt_get install -y -q "${missing[@]}" >"$log" 2>&1 \
       || { tail -20 "$log"; return 1; }
   fi
 }

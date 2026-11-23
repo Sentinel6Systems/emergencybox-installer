@@ -42,7 +42,7 @@ Components: main
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/jellyfin.gpg
 SRC
-  apt-get update -q >/var/log/emergencybox-apt.log 2>&1 || { tail -20 /var/log/emergencybox-apt.log; die "apt-get update failed (Jellyfin repository unreachable?)"; }
+  apt_get update -q >/var/log/emergencybox-apt.log 2>&1 || { tail -20 /var/log/emergencybox-apt.log; die "apt-get update failed (Jellyfin repository unreachable?)"; }
   cand="$(apt-cache policy jellyfin-server | sed -n 's/^ *Candidate: //p')"
   case "$cand" in "$JELLYFIN_SERIES".*) ;; *) die "Jellyfin $cand is offered, but versions.lock allows $JELLYFIN_SERIES.x; check before changing the pin" ;; esac
   apt_install jellyfin || die "Couldn't install Jellyfin"

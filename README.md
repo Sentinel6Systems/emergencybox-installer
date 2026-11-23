@@ -13,6 +13,7 @@ that joins its Wi-Fi. No internet needed once it's installed.
 ## Install
 
 ```bash
+sudo apt update && sudo apt install -y git        # Raspberry Pi OS Lite comes without git
 git clone https://github.com/Sentinel6Systems/emergencybox-installer.git emergencybox && cd emergencybox
 cp box.conf.default box.conf && nano box.conf   # optional: name, Wi-Fi, map area, time zone
 sudo ./install.sh
