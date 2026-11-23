@@ -42,15 +42,35 @@ grep -q '^REMOTE_FIREWALL=' "$D/.env" || echo 'REMOTE_FIREWALL=off' >> "$D/.env"
 ok "fieldmap-server's own firewall off (REMOTE_FIREWALL=off); the box's firewall is used"
 
 part_installed maps
-# --- 2. Map data: the owner adds it; without the three base layers there is nothing to serve ---------
-missing=""; for f in basemap contours hillshade; do [ -s "$DATA/$f.mbtiles" ] || missing+=" $f.mbtiles"; done
-if [ -n "$missing" ]; then
-  info "no map data yet (missing:$missing): the Maps card shows \"Nothing added yet\"."
-  info "Copy the .mbtiles files into $DATA (as $OWNER, no sudo needed), then run: sudo ./install.sh maps"
-  doctor_check maps
-  return 0
+# --- 2. A start map: the whole world at zoom 0-8 (versions.lock), so the map is never blank ----------
+# It is also the world overview the Map Builder (/mapadmin/) puts under every region it builds;
+# with it there, the Pi can build regions with "Include World Overview" (it can't make the world).
+. "$HERE/versions.lock"
+WORLD="$DATA/$(basename "$WORLD_MAP_URL")"
+if [ ! -s "$WORLD" ]; then
+  info "downloading the world map, zoom 0-8 ($WORLD_MAP_SIZE)..."
+  if runuser -u "$OWNER" -- curl -fsSL --retry 3 --connect-timeout 20 -o "$WORLD.part" "$WORLD_MAP_URL" \
+     && [ "$(sha256sum < "$WORLD.part" | cut -d' ' -f1)" = "$WORLD_MAP_SHA256" ]; then
+    mv "$WORLD.part" "$WORLD"; chmod 664 "$WORLD"
+    ok "world map: $(basename "$WORLD")"
+  else
+    rm -f "$WORLD.part"
+    warn "couldn't download the world map (no internet, or the file didn't match versions.lock)."
+    info "The map stays blank until you build a region at /mapadmin/. To retry: sudo ./install.sh maps"
+  fi
+else
+  ok "world map: $(basename "$WORLD") (already there)"
 fi
-ok "map data: $(cd "$DATA" && ls -1 ./*.mbtiles | sed 's|^\./||;s|\.mbtiles$||' | paste -sd' ' -) ($(du -sh --apparent-size "$DATA" | cut -f1))"
+# The base map: the owner's own (built at /mapadmin/ or copied in) is never touched. Only a missing
+# one, or fieldmap-server's empty placeholder (no tiles), becomes a copy of the world map.
+tiles() { python3 -c "import sqlite3,sys; print(sqlite3.connect('file:'+sys.argv[1]+'?mode=ro', uri=True).execute('select count(*) from tiles').fetchone()[0])" "$1" 2>/dev/null || echo 0; }
+if [ -s "$WORLD" ] && { [ ! -s "$DATA/basemap.mbtiles" ] || [ "$(tiles "$DATA/basemap.mbtiles")" = 0 ]; }; then
+  runuser -u "$OWNER" -- cp "$WORLD" "$DATA/basemap.mbtiles.part"
+  mv "$DATA/basemap.mbtiles.part" "$DATA/basemap.mbtiles"; chmod 664 "$DATA/basemap.mbtiles"
+  ok "base map: the world map, zoom 0-8 (build your own area at /mapadmin/ for more detail)"
+fi
+have=""; for f in basemap contours hillshade; do [ "$(tiles "$DATA/$f.mbtiles")" != 0 ] && have+=" $f"; done
+ok "map data:${have:- none yet} (contours and hillshade come from a region build at /mapadmin/)"
 
 # --- 3. Its installer, beside the box's nginx (Docker, tile server, map, routing, remote access) ----
 info "running fieldmap-server's installer (first run: Docker, images, map build; 10-20 minutes on a Pi)..."
@@ -58,6 +78,7 @@ set +e
 FIELDMAP_NGINX_DIR=/etc/nginx/emergencybox.d \
 FIELDMAP_PORTS_FILE="$BOX_ETC/firewall.d/50-fieldmap.ports" \
 FIELDMAP_SERVER_NAME="$ADDRESS" \
+FIELDMAP_PAUSE_UNITS="jellyfin calibre-web kiwix-serve" \
   "$D/scripts/install-nginx.sh" < /dev/null 2>&1 | sed 's/^/         | /'
 rc=${PIPESTATUS[0]}
 set -e
@@ -65,9 +86,9 @@ set -e
 ok "fieldmap-server installed"
 
 say "Checks"
-for p in /maps/styles.json /map/; do   # routing is optional (404 until its data is built)
+for p in /maps/styles.json /map/ /mapadmin/; do   # routing is optional (404 until its data is built)
   c="$(http_code "$p")"
   case "$c" in 200|301|302) ok "$p ($c)" ;; *) die "$p answered $c" ;; esac
 done
-doctor_check maps "service docker Docker (tile server)" "http /maps/styles.json docker Map tiles" "http /map/ nginx Map page"
+doctor_check maps "service docker Docker (tile server)" "http /maps/styles.json docker Map tiles" "http /map/ nginx Map page" "http /mapadmin/ fieldmap-admin Map Builder"
 info "Routing data is optional: $D/scripts/build-routing.sh <minlon> <minlat> <maxlon> <maxlat>"

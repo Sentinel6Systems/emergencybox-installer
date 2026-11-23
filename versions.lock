@@ -20,3 +20,10 @@ EMULATORJS_SHA256="07d451bc06fa3ad04ab30d9b94eb63ac34ad0babee52d60357b002bde8f38
 # --- Maps -----------------------------------------------------------------------
 # The one exception: fieldmap-server is not pinned. The maps part takes the latest of
 # FIELDMAP_BRANCH (box.conf) on every run, because it is updated often.
+
+# The start map: the whole world at zoom 0-8 (OpenStreetMap data of 2026-11-09, OpenMapTiles
+# schema, English labels), built once with fieldmap-server's build-world.sh on a large machine.
+# The name is the one fieldmap-server's Map Builder looks for as its world overview.
+WORLD_MAP_URL="https://github.com/Sentinel6Systems/fieldmap-server/releases/download/world-2026-11-09/world-z0-8-en.mbtiles"
+WORLD_MAP_SHA256="4ade1a37983c6051e59ddb3cdb12f9e1be0092bceda9088b43716e4b5e3ccdb7"
+WORLD_MAP_SIZE="283 MB"

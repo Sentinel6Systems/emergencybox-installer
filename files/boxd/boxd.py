@@ -289,23 +289,32 @@ def clients(requester_ip=None):
 
 
 # ---------- parts and content (blank-slate boxes show what's empty) ----------
-# part -> (folder under CONTENT, file endings that count as content; None = any file)
+# part -> (folder under CONTENT, file endings that count as content; None = any file[, smallest size])
 CONTENT_OF = {
     "library": ("zims", (".zim",)),
     "books": ("books", (".epub", ".pdf", ".mobi", ".azw3", ".txt", ".cbz")),
-    "maps": (MAPS, (".mbtiles", ".pmtiles")),             # absolute: os.path.join keeps it
+    # absolute: os.path.join keeps it. fieldmap-server's empty placeholders (a few KB) don't count.
+    "maps": (MAPS, (".mbtiles", ".pmtiles"), 1 << 20),
     "movies": ("media", (".mp4", ".mkv", ".m4v", ".webm", ".avi", ".mov")),
     "games": ("games/roms", None),
 }
 _parts = {"t": 0, "v": None}
 
 
-def _count(sub, ends, limit=5000):
+def _big_enough(path, min_bytes):
+    try:
+        return os.path.getsize(path) >= min_bytes
+    except OSError:
+        return False
+
+
+def _count(sub, ends, min_bytes=0, limit=5000):
     n = 0
     for root, dirs, files in os.walk(os.path.join(CONTENT, sub)):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d != "lost+found"]
         for f in files:
-            if not f.startswith(".") and (ends is None or f.lower().endswith(ends)):
+            if not f.startswith(".") and (ends is None or f.lower().endswith(ends)) \
+                    and (not min_bytes or _big_enough(os.path.join(root, f), min_bytes)):
                 n += 1
                 if n >= limit:
                     return n

@@ -39,9 +39,10 @@ The same two logins everywhere. They are generic on purpose; change them on the 
 
 ## Adding content (last step)
 
-The box starts empty: every card says "Nothing added yet". Add what you want, either on the
-admin page (`http://box.lan/box/admin/`) or by copying files as `admin` over SSH. No sudo is
-needed to copy into these folders:
+The box starts empty: every card says "Nothing added yet", except Maps, which starts with a
+world map down to about county level (zoom 0-8, downloaded during the install). Add what you
+want, either on the admin page (`http://box.lan/box/admin/`) or by copying files as `admin`
+over SSH. No sudo is needed to copy into these folders:
 
 | What | Where |
 |---|---|
@@ -49,7 +50,7 @@ needed to copy into these folders:
 | Movies and shows | One folder per movie or show: `/srv/box/content/media/<library>/<Title>/` (see below) |
 | Game ROMs | `/srv/box/content/games/roms/<system>/` |
 | Books | Sign in to Calibre-Web (`/books/`) as admin and use Upload |
-| Maps (`basemap`, `contours`, `hillshade` `.mbtiles`, plus optional layers) | `/opt/fieldmap-server/data/`, then `sudo ./install.sh maps` |
+| Maps for your area | Build them on the Map Builder (`http://box.lan/mapadmin/`; tick Include World Overview), or copy `.mbtiles` files into `/opt/fieldmap-server/data/` and run `sudo ./install.sh maps` |
 
 Keep each movie in its own folder, with its subtitles and poster named so Jellyfin finds them:
 `movies/Planet Earth (2006)/Planet Earth (2006).mp4`, `Planet Earth (2006).en.srt` and `poster.jpg`.
