@@ -31,6 +31,9 @@ MEDIA_DIR = os.environ.get("BOXFILES_MEDIA", "/media")
 # Uploads go into a library folder, never loose at the top, where Jellyfin wouldn't see them.
 LIBRARY_DIR = os.environ.get("BOXFILES_LIBRARY", "")
 LIBRARY_NAMES = dict(x.split(":", 1) for x in os.environ.get("BOXFILES_LIBRARY_NAMES", "").split() if ":" in x)
+# Libraries where every movie or show has its own folder (Jellyfin's movies and shows types, as
+# files/jellyfin/setup.py makes them): a file can't go straight into the library folder.
+SHOW_LIBS, OTHER_LIBS = ("shows", "tv"), ("youtube", "music")
 GB = 1024 ** 3
 MAX_MY = int(os.environ.get("BOXFILES_MAX_GB", "5") or 0) * GB
 RESERVE = int(os.environ.get("BOXFILES_RESERVE_GB", "5") or 0) * GB
@@ -225,9 +228,10 @@ def unique_path(dirpath, name):
 
 # ---------- operations ----------
 
-def lib_guard(root_id, base, parent, moving=None):
+def lib_guard(root_id, base, parent, moving=None, file=False):
     """Movies & shows: nothing loose at the top (Jellyfin only reads its library folders),
-    and the library folders themselves stay put."""
+    the library folders themselves stay put, and in a movies or shows library a file goes into
+    a movie's or show's own folder (Movies/<Title>/<Title>.mp4), never straight into the library."""
     if root_id != "library":
         return
     if moving is not None and os.path.dirname(moving) == base:
@@ -235,6 +239,11 @@ def lib_guard(root_id, base, parent, moving=None):
     if parent is not None and os.path.normpath(parent) == os.path.normpath(base):
         names = ", ".join(LIBRARY_NAMES.values()) or "the library folders"
         raise ApiError(400, "Open one of the folders first (%s) so Jellyfin finds it." % names)
+    lib = os.path.basename(os.path.normpath(parent or ""))
+    if file and os.path.dirname(os.path.normpath(parent)) == os.path.normpath(base) and lib not in OTHER_LIBS:
+        what = "show" if lib in SHOW_LIBS else "movie"
+        raise ApiError(400, "In %s, each %s has its own folder: make a New folder named after the %s, "
+                            "then put its video, subtitles and poster in it." % (LIBRARY_NAMES.get(lib, lib), what, what))
 
 
 def op_list(root_id, rel):
@@ -331,7 +340,7 @@ def op_save_text(root_id, rel, text, create=False):
         parent_rel, _, name = (rel or "").rstrip("/").rpartition("/")
         name = check_name(name)
         base, d = resolve(root_id, parent_rel)
-        lib_guard(root_id, base, d)
+        lib_guard(root_id, base, d, file=True)
         p = os.path.join(d, name)
         if os.path.lexists(p):
             raise ApiError(409, "Something with that name is already here.")
@@ -421,7 +430,7 @@ def op_copy(src_root, src_rel, dst_root, dst_rel, move=False):
     dbase, d = resolve(dst_root, dst_rel)
     if not os.path.isdir(d):
         raise ApiError(400, "The destination is not a folder.")
-    lib_guard(dst_root, dbase, d)
+    lib_guard(dst_root, dbase, d, file=os.path.isfile(s))
     if move:
         lib_guard(src_root, sbase, None, moving=s)
     if os.path.isdir(s) and (d == s or d.startswith(s + os.sep)):
@@ -670,7 +679,7 @@ class Handler(BaseHTTPRequestHandler):
         base, d = resolve(root_id, rel)
         if not os.path.isdir(d):
             raise ApiError(400, "Not a folder.")
-        lib_guard(root_id, base, d)
+        lib_guard(root_id, base, d, file=True)
         _need_space(d, length)
         _fat_limit(d, length)
         fd, tmp = tempfile.mkstemp(prefix=".upload-", dir=d)

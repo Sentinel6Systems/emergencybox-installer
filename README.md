@@ -46,10 +46,18 @@ needed to copy into these folders:
 | What | Where |
 |---|---|
 | Library (`.zim` files from library.kiwix.org) | `/srv/box/content/zims/` (picked up by itself) |
-| Movies and shows | `/srv/box/content/media/<library>/` (picked up within a minute) |
+| Movies and shows | One folder per movie or show: `/srv/box/content/media/<library>/<Title>/` (see below) |
 | Game ROMs | `/srv/box/content/games/roms/<system>/` |
 | Books | Sign in to Calibre-Web (`/books/`) as admin and use Upload |
 | Maps (`basemap`, `contours`, `hillshade` `.mbtiles`, plus optional layers) | `/opt/fieldmap-server/data/`, then `sudo ./install.sh maps` |
+
+Keep each movie in its own folder, with its subtitles and poster named so Jellyfin finds them:
+`movies/Planet Earth (2006)/Planet Earth (2006).mp4`, `Planet Earth (2006).en.srt` and `poster.jpg`.
+The admin page does this naming for you. A show keeps its episodes' names in the show's folder
+(`shows/<Show>/Show.S01E01.mp4`). New files are picked up within a minute, except the first
+movie in an empty library: Jellyfin only watches a library after a scan has found something in
+it. The admin page starts that scan by itself; after copying over SSH, start it from Jellyfin's
+dashboard (Libraries, Scan All Libraries).
 
 For example, from another computer:
 

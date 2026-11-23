@@ -6,8 +6,9 @@ POST /api/admin/logout
 GET  /api/admin/state      signed in?, settings, parts, content, USB drives, running job
 POST /api/admin/wifi       {ssid, password}                 change the hotspot (runs the installer's network part)
 POST /api/admin/passwords  {current, admin?, user?}         change the admin / shared user password
-POST /api/admin/upload-check {kind, sub, name, size}       may this file go in? (the page asks before sending)
+POST /api/admin/upload-check {kind, sub, name, size}       may this file go in, and under which name?
 POST /api/admin/upload?kind=..&sub=..&name=..   raw body    add a file to the content (streamed to disk)
+    Movies: sub is "<library>/<Title>", and the files are named after the title (see store_name).
 POST /api/admin/delete     {kind, sub, name}                remove a content file
 POST /api/admin/backup     {drive}                          My files + settings + map pairing to a USB drive
 POST /api/admin/restore    {drive, file, settings}          My files (and optionally Wi-Fi/user password, map pairing) back
@@ -38,15 +39,24 @@ CHUNK = 1 << 20
 SESSION_HOURS = 8
 
 MAP_LAYERS = ["basemap", "contours", "hillshade", "hillshade-detail", "elevation", "extras", "usdata"]
+VIDEOS = (".mp4", ".mkv", ".m4v", ".webm", ".avi", ".mov")
+SUBTITLES = (".srt", ".vtt", ".ass")
+POSTERS = (".jpg", ".jpeg", ".png")
 # kind -> (folder under the content root, allowed endings, what the owner sees)
 KINDS = {
     "library": ("zims", (".zim",), "Library (ZIM files)"),
     "maps": (MAPS, (".mbtiles",), "Map layers"),          # absolute: os.path.join keeps it
     "games": ("games/roms", None, "Game ROMs"),
-    "movies": ("media", (".mp4", ".mkv", ".m4v", ".webm", ".avi", ".mov", ".srt", ".vtt", ".ass"), "Movies & shows"),
+    "movies": ("media", VIDEOS + SUBTITLES + POSTERS, "Movies & shows"),
 }
+# Jellyfin's library type by folder name, as files/jellyfin/setup.py makes them (anything else: movies)
+SHOW_LIBS, OTHER_LIBS = ("shows", "tv"), ("youtube", "music")
+# Endings of a subtitle's name that Jellyfin reads as its language or kind (Movie.en.forced.srt)
+SUB_TAGS = set("""en eng es spa fr fre fra de ger deu it ita pt por nl dut nld sv swe no nor nb nob da dan
+    fi fin pl pol ru rus uk ukr cs cze ces hu hun ro rum ron el gre ell tr tur ar ara he heb hi hin zh chi zho
+    ja jpn ko kor vi vie th tha id ind forced sdh cc default""".split())
 NAME_OK = re.compile(r"^[^/\\\x00-\x1f]{1,200}$")
-SUB_OK = re.compile(r"^[A-Za-z0-9 ._()&'-]{1,80}$")
+SUB_OK = re.compile(r"^[\w ,.!()&'-]{1,80}$")
 PW_BAD = set("'\"\\`$<>&")
 SSID_OK = re.compile(r"^[A-Za-z0-9 ._-]{1,32}$")
 USB_RE = re.compile(r"^usb[0-9]+$")
@@ -224,8 +234,12 @@ def jf_libs():
     out = []
     for e in JF_LIBS.split():
         folder, _, name = e.partition(":")
-        out.append({"id": folder, "name": name or folder.capitalize()})
+        out.append({"id": folder, "name": name or folder.capitalize(), "type": lib_type(folder)})
     return out
+
+
+def lib_type(folder):
+    return "shows" if folder in SHOW_LIBS else "other" if folder in OTHER_LIBS else "movies"
 
 
 def kind_dir(kind, sub=""):
@@ -242,8 +256,8 @@ def kind_dir(kind, sub=""):
             raise ApiError(400, "Pick a library.")
         d = os.path.join(base, lib)
         if folder:                      # a show's or movie's own folder: one level, plain name
-            if not SUB_OK.match(folder) or folder.startswith("."):
-                raise ApiError(400, "Folder names: letters, numbers, spaces and . _ ( ) & ' - only.")
+            if not SUB_OK.match(folder) or folder[0] in ". " or folder[-1] in ". ":
+                raise ApiError(400, "Titles: letters, numbers, spaces and , . ! _ ( ) & ' - only.")
             d = os.path.join(d, folder)
         return d
     return base
@@ -282,7 +296,7 @@ def content():
         if kind == "games":
             groups = [{"id": s, "name": s, "files": list_files(os.path.join(d, s), 1)} for s in game_systems()]
         elif kind == "movies":
-            groups = [{"id": l["id"], "name": l["name"], "files": list_files(os.path.join(d, l["id"]), 3)} for l in jf_libs()]
+            groups = [{**l, "files": list_files(os.path.join(d, l["id"]), 3)} for l in jf_libs()]
         else:
             groups = [{"id": "", "name": label, "files": list_files(d, 1)}]
         out[kind] = {"label": label, "groups": groups}
@@ -330,6 +344,9 @@ def drive_path(d):
 def upload_target(kind, sub, name, size):
     """The folder an upload goes to, after every check that can be made before the bytes arrive."""
     d = kind_dir(kind, sub)
+    lib, _, folder = sub.partition("/")
+    if kind == "movies" and not folder and lib_type(lib) != "other":     # every movie and show in its own folder
+        raise ApiError(400, "Type the show's name." if lib_type(lib) == "shows" else "Type the movie's title.")
     if not isinstance(name, str) or not NAME_OK.match(name) or name.startswith(".") or name in (".", ".."):
         raise ApiError(400, "That file name can't be used.")
     ends = KINDS[kind][1]
@@ -342,10 +359,52 @@ def upload_target(kind, sub, name, size):
         room = max(0, space["free"] - RESERVE - (200 << 20))
         raise ApiError(507, f"Not enough room for {name}: it is {size >> 20} MB and there is room for {room >> 20} MB "
                             f"({RESERVE >> 30} GB is kept free for the system).")
-    return d
+    return d, store_name(kind, sub, name)
+
+
+def store_name(kind, sub, name):
+    """The name a file is kept under. In a movies library the parts of a movie are named after its
+    folder, the names Jellyfin pairs up by itself: <Title>/<Title>.mp4, <Title>/<Title>.en.srt,
+    <Title>/poster.jpg. A show's episodes keep their names (Jellyfin reads S01E02); its poster is poster.jpg."""
+    if kind != "movies":
+        return name
+    lib, _, folder = sub.partition("/")
+    stem, ext = os.path.splitext(name)
+    ext = ext.lower()
+    if ext in POSTERS:
+        if lib_type(lib) == "other":
+            raise ApiError(400, "Posters go in a movie's or a show's folder.")
+        return "poster" + (".jpg" if ext == ".jpeg" else ext)
+    if lib_type(lib) != "movies":
+        return name
+    tags = []
+    if ext in SUBTITLES:
+        for t in reversed(stem.split(".")[1:]):
+            if t.lower() not in SUB_TAGS:
+                break
+            tags.insert(0, "." + t.lower())
+    return folder + "".join(tags) + ext
 
 
 # ---------- after content changes ---------------------------------------------------------------
+def has_video(d):
+    for root, dirs, files in os.walk(d):
+        if any(f.lower().endswith(VIDEOS) and not f.startswith(".") for f in files):
+            return True
+    return False
+
+
+def jf_scan():
+    """Jellyfin only watches a library folder once a scan has found something in it, so the first
+    movie in an empty library needs a scan; after that, new files show up by themselves."""
+    try:
+        tok = jf("POST", "/Users/AuthenticateByName", {"Username": "admin", "Pw": conf_get().get("ADMIN_PASSWORD", "")})["AccessToken"]
+        jf("POST", "/Library/Refresh", token=tok)
+        log("jellyfin: library scan started (first movie in a library)")
+    except Exception as e:
+        log(f"jellyfin: library scan failed: {e!r}")
+
+
 def after_change(kind):
     if kind == "library" and shutil.which("box-kiwix-library"):
         subprocess.run(["box-kiwix-library"], capture_output=True, timeout=300)
@@ -717,8 +776,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if path == "/api/admin/passwords":
                 return self.passwords(b)
             if path == "/api/admin/upload-check":
-                upload_target(b.get("kind", ""), b.get("sub", ""), b.get("name", ""), int(b.get("size") or 0))
-                return self.send(200, {"ok": True})
+                _, name = upload_target(b.get("kind", ""), b.get("sub", ""), b.get("name", ""), int(b.get("size") or 0))
+                return self.send(200, {"ok": True, "name": name})
             if path == "/api/admin/delete":
                 return self.delete(b)
             if path == "/api/admin/backup":
@@ -809,11 +868,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             if n < 0:
                 raise ApiError(411, "Size missing.")
-            d = upload_target(q.get("kind", ""), q.get("sub", ""), q.get("name", ""), n)
+            d, name = upload_target(q.get("kind", ""), q.get("sub", ""), q.get("name", ""), n)
         except ApiError:
             self.drain(n)
             raise
-        kind, sub, name = q["kind"], q.get("sub", ""), q["name"]
+        kind, sub = q["kind"], q.get("sub", "")
+        first = kind == "movies" and name.lower().endswith(VIDEOS) and not has_video(kind_dir(kind, sub.partition("/")[0]))
         os.makedirs(d, exist_ok=True)
         final = os.path.join(d, name)
         tmp = os.path.join(d, f".{name}.upload-{secrets.token_hex(4)}")
@@ -833,8 +893,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if os.path.exists(tmp):
                 os.remove(tmp)
         log(f"upload {kind}/{sub}/{name} ({n} bytes)")
+        if first:
+            jf_scan()
         msg = after_change(kind)
-        self.send(200, {"ok": True, "message": msg})
+        self.send(200, {"ok": True, "message": msg, "name": name})
 
     def drain(self, n, limit=64 << 20):
         """Read what the browser is still sending, so nginx gets our answer and not a reset (502).
