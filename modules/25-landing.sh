@@ -7,6 +7,8 @@ BACKUPS=/var/lib/emergencybox/page-backups
 
 say "Landing page"
 NEW="$(mktemp -d)"
+# box.css?v=<its checksum>: browsers fetch the new stylesheet after an update instead of a cached one
+export CSS_VERSION="$(sha256sum "$HERE/files/www/box/assets/box.css" | cut -c1-10)"
 render_tree "$HERE/files/www/box" "$NEW"
 if [ -d "$WEB" ] && diff -rq "$NEW" "$WEB" >/dev/null 2>&1; then
   ok "pages in $WEB already up to date"

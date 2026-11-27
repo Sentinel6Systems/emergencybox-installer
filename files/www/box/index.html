@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0e110f">
 <title>{{BOX_NAME}}</title>
-<link rel="stylesheet" href="assets/box.css">
+<link rel="stylesheet" href="assets/box.css?v={{CSS_VERSION}}">
 </head>
 <body>
 
@@ -352,17 +352,21 @@ const RANGE_EVERY = {'30s':2000, '5m':5000, '24h':30000, '1w':60000};
 const rate = b => b == null ? '–' : b >= 1e6 ? (b/1e6).toFixed(1)+' Mb/s' : b >= 1e3 ? (b/1e3).toFixed(0)+' kb/s' : Math.round(b)+' b/s';
 const pair = (d, u, f) => `↓ ${f(d)} &nbsp;↑ ${f(u)}`;
 // Down is filled, up is a dashed line. Gaps (box off) stay empty.
+// Down and up each get a solid line over a light fill; gaps (box off) stay empty. Colours sit on the
+// paths themselves, so the chart still reads if the browser holds an older box.css.
 const chart = (c, rng) => {
   const W = 600, H = 110, n = c.down.length, most = Math.max(1000, ...c.down.filter(v => v != null), ...c.up.filter(v => v != null)), top = most * 1.1;
   const x = i => (n > 1 ? i / (n - 1) : 0) * W, y = v => H - v / top * H;
   const runs = vs => { const out = []; let cur = null;
-    vs.forEach((v, i) => { if (v == null) cur = null; else { if (!cur) out.push(cur = []); cur.push([x(i), y(v)]); } }); return out; };
+    vs.forEach((v, i) => { if (v == null) cur = null; else { if (!cur) out.push(cur = []); cur.push([x(i), y(v)]); } });
+    return out.map(r => r.length > 1 ? r : [r[0], [r[0][0] + W / n, r[0][1]]]); };   // a lone point gets a short stub
   const line = r => 'M' + r.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L');
-  const dn = runs(c.down), up = runs(c.up);
-  const area = dn.map(r => line(r.length > 1 ? r : [r[0], [r[0][0] + W / n, r[0][1]]]) + `L${(r.length > 1 ? r[r.length-1][0] : r[0][0] + W / n).toFixed(1)},${H}L${r[0][0].toFixed(1)},${H}Z`).join('');
+  const area = r => line(r) + `L${r[r.length-1][0].toFixed(1)},${H}L${r[0][0].toFixed(1)},${H}Z`;
+  const draw = (rs, col) => rs.map(r => `<path d="${area(r)}" style="fill:${col};fill-opacity:.14;stroke:none"/>`).join('')
+    + rs.map(r => `<path d="${line(r)}" vector-effect="non-scaling-stroke" style="fill:none;stroke:${col};stroke-width:2;stroke-linejoin:round"/>`).join('');
   return `<div class="nchart"><div class="nleg mono"><span><i class="dn"></i>DOWN</span><span><i class="up"></i>UP</span><b>${rate(most)}</b></div>
    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Traffic over the last ${RANGE_AGO[rng].replace(' ago', '')}">
-    <path class="ga" d="${area}"/>${dn.map(r => `<path class="gd" d="${line(r)}"/>`).join('')}${up.map(r => `<path class="gu" d="${line(r)}"/>`).join('')}</svg>
+    ${draw(runs(c.up), 'var(--up,#7fb0d0)')}${draw(runs(c.down), 'var(--sig,#a9c06a)')}</svg>
    <div class="nax mono"><span>${RANGE_AGO[rng]}</span><span>now</span></div></div>`;
 };
 const connCard = (c, rng) => {
