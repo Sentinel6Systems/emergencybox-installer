@@ -7,12 +7,14 @@ POST /api/reboot    reboot
 GET  /api/clients   devices on the hotspot (name, type, IP, MAC, signal, data)
 GET  /api/parts     which parts of the box are installed, and how much content each has
 GET  /api/doctor    the latest box-doctor result (self-check, every 15 minutes)
+GET  /api/network   connections (Ethernet, Wi-Fi, VPN) and their traffic: ?range=30s|5m|24h|1w
 
 Python standard library only. Listens on 127.0.0.1; nginx proxies /api/ to it.
 """
-import glob, json, os, re, shutil, subprocess, threading, time
+import glob, json, os, re, shutil, signal, subprocess, threading, time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 HOST, PORT = "127.0.0.1", int(os.environ.get("BOXD_PORT", "8181"))
 WINDOW = 5                      # seconds averaged
@@ -22,6 +24,7 @@ CONTENT = os.environ.get("BOXD_CONTENT", "/srv/box/content")
 MAPS = os.environ.get("BOXD_MAPS", "/opt/fieldmap-server/data")   # fieldmap-server keeps its own data
 PARTS_DIR = "/etc/emergencybox/parts"          # each module drops a file named after its part
 DOCTOR_FILE = "/run/emergencybox/doctor.json"  # written by box-doctor
+NET_HISTORY = os.path.join(os.environ.get("BOXD_STATE", "/var/lib/boxd"), "net-history.json")
 TEMP_WARN, TEMP_HOT = 65.0, 80.0  # Pi 4 firmware starts throttling at 80 C
 
 samples = deque(maxlen=WINDOW + 1)   # one per second
@@ -44,14 +47,18 @@ def cpu_times():
     return sum(v), idle
 
 
-def net_bytes():
-    rx = tx = 0
-    rows = read("/proc/net/dev").splitlines()[2:]
+def net_counters():
+    """interface -> (rx bytes, tx bytes)"""
     ifs = {}
-    for r in rows:
+    for r in read("/proc/net/dev").splitlines()[2:]:
         name, data = r.split(":", 1)
         d = data.split()
         ifs[name.strip()] = (int(d[0]), int(d[8]))
+    return ifs
+
+
+def net_bytes(ifs):
+    rx = tx = 0
     if HOTSPOT_IF in ifs:
         return ifs[HOTSPOT_IF]
     for name, (r, t) in ifs.items():
@@ -76,9 +83,9 @@ def temp_c():
 
 def sample():
     total, idle = cpu_times()
-    rx, tx = net_bytes()
+    ifs = net_counters()
     mt, mu = mem()
-    return {"t": time.monotonic(), "cpu": (total, idle), "net": (rx, tx), "mem": mu, "memt": mt, "temp": temp_c()}
+    return {"t": time.monotonic(), "cpu": (total, idle), "net": net_bytes(ifs), "ifs": ifs, "mem": mu, "memt": mt, "temp": temp_c()}
 
 
 def ap_interfaces():
@@ -128,13 +135,19 @@ def throttled():
 
 
 def sampler():
+    saved = time.monotonic()
     while True:
         s = sample()
         with lock:
+            prev = samples[-1] if samples else None
             samples.append(s)
+        if prev:
+            net_record(prev, s)
         now = time.monotonic()
         if now - slow["t"] >= 5:
             slow.update(clients=count_clients(), throttled=throttled(), t=now)
+        if now - saved >= 300:          # the 24-hour and week history survive a restart
+            net_save(); saved = now
         time.sleep(1)
 
 
@@ -347,6 +360,179 @@ def doctor():
         return {"ok": None, "checks": [], "note": "box-doctor hasn't run yet"}
 
 
+# ---------- network: each connection and its traffic over time ----------
+# range -> (seconds per point, points kept). Every second's traffic is added to all four.
+RANGES = {"30s": (1, 30), "5m": (5, 60), "24h": (300, 288), "1w": (3600, 168)}
+KEEP = ("5m", "24h", "1w")              # written to NET_HISTORY
+SKIP_IF = ("lo", "docker", "veth", "br-", "virbr", "p2p-")
+VPN_NAMES = (("tailscale", "Tailscale"), ("wt", "NetBird"), ("wg", "WireGuard"), ("zt", "ZeroTier"),
+             ("tun", "VPN"), ("tap", "VPN"), ("ppp", "VPN"))
+hist = {r: {} for r in RANGES}          # range -> interface -> {point number: [rx bytes, tx bytes, seconds]}
+ORDER = {"hotspot": 0, "ethernet": 1, "wifi": 2, "vpn": 3}
+
+
+def net_record(a, b):
+    """Add the traffic between two samples to every range. Point numbers count from 1970,
+    so the saved history lines up again after a restart."""
+    secs = min(b["t"] - a["t"], 5.0)    # a stalled sampler doesn't count as hours of silence
+    now = time.time()
+    with lock:
+        for name, (rx, tx) in b["ifs"].items():
+            if name.startswith(SKIP_IF) or name not in a["ifs"]:
+                continue
+            drx, dtx = rx - a["ifs"][name][0], tx - a["ifs"][name][1]
+            if drx < 0 or dtx < 0:          # the interface was re-created: its counters restarted
+                continue
+            for r, (step, n) in RANGES.items():
+                pts = hist[r].setdefault(name, {})
+                cur = int(now // step)
+                p = pts.get(cur)
+                if p is None:               # a new point: drop the ones that fell out of the range
+                    for k in [k for k in pts if k <= cur - n or k > cur]:
+                        del pts[k]
+                    p = pts[cur] = [0, 0, 0.0]
+                p[0] += drx; p[1] += dtx; p[2] += secs
+
+
+def net_load():
+    try:
+        with open(NET_HISTORY) as f:
+            d = json.load(f)
+        for r in KEEP:
+            for name, pts in d.get(r, {}).items():
+                hist[r][name] = {int(k): v for k, v in pts.items()}
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+
+
+def net_save():
+    with lock:
+        d = {r: {name: {str(k): v for k, v in pts.items()} for name, pts in hist[r].items()} for r in KEEP}
+    try:
+        os.makedirs(os.path.dirname(NET_HISTORY), exist_ok=True)
+        with open(NET_HISTORY + ".tmp", "w") as f:
+            json.dump(d, f)
+        os.replace(NET_HISTORY + ".tmp", NET_HISTORY)
+    except OSError:
+        pass
+
+
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def iface_kind(name):
+    """(kind, label) or (None, None) for interfaces the page doesn't show (bridges, dummies)."""
+    s = "/sys/class/net/" + name
+    if os.path.isdir(s + "/wireless") or os.path.exists(s + "/phy80211"):
+        return "wifi", "Wi-Fi"
+    for pre, label in VPN_NAMES:
+        if name.startswith(pre):
+            return "vpn", label
+    if read(s + "/type").strip() == "65534":    # no hardware address: a tunnel
+        return "vpn", "VPN"
+    if os.path.exists(s + "/device"):
+        return "ethernet", "Ethernet"
+    return None, None
+
+
+def iw_info(name, cmd):
+    out = {}
+    for line in run(["iw", "dev", name] + cmd).splitlines():
+        line = line.strip()
+        for key, pat in (("type", r"^type (\S+)"), ("ssid", r"^ssid (.+)"), ("ssid", r"^SSID: (.+)"),
+                         ("channel", r"^channel (\d+)"), ("signal_dbm", r"^signal: (-?\d+)"),
+                         ("link_mbps", r"^tx bitrate: ([\d.]+)")):
+            m = re.match(pat, line)
+            if m:
+                out[key] = m.group(1)
+    return out
+
+
+def series(name, rng, ap):
+    """Points for one interface, oldest first: [down, up] bits per second, or None where the box was off.
+    down = toward the people using the box: what the hotspot sends, what every other connection receives."""
+    step, n = RANGES[rng]
+    cur = int(time.time() // step)
+    with lock:
+        pts = dict(hist[rng].get(name, {}))
+    d, u, tot_d, tot_u, secs = [], [], 0, 0, 0.0
+    for k in range(cur - n + 1, cur + 1):
+        p = pts.get(k)
+        if not p or p[2] <= 0:
+            d.append(None); u.append(None); continue
+        down, up = (p[1], p[0]) if ap else (p[0], p[1])
+        d.append(round(down * 8 / p[2])); u.append(round(up * 8 / p[2]))
+        tot_d += down; tot_u += up; secs += p[2]
+    peak = lambda xs: max((x for x in xs if x is not None), default=None)
+    return {"step_s": step, "down": d, "up": u, "total_down": tot_d, "total_up": tot_u, "recorded_s": round(secs),
+            "avg_down": round(tot_d * 8 / secs) if secs else None, "avg_up": round(tot_u * 8 / secs) if secs else None,
+            "peak_down": peak(d), "peak_up": peak(u)}
+
+
+def network(rng):
+    if rng not in RANGES:
+        rng = "30s"
+    addrs = {}
+    try:
+        for i in json.loads(run(["ip", "-j", "addr", "show"]) or "[]"):
+            addrs[i.get("ifname")] = (i.get("operstate", "").lower(),
+                                      [a["local"] for a in i.get("addr_info", []) if a.get("family") == "inet"])
+    except ValueError:
+        pass
+    try:
+        routes = json.loads(run(["ip", "-j", "route", "show", "default"]) or "[]")
+    except ValueError:
+        routes = []
+    internet = {r.get("dev") for r in routes}
+    with lock:
+        known = set(hist["1w"]) | set(hist["30s"])
+    present = {n for n in os.listdir("/sys/class/net") if not n.startswith(SKIP_IF)}
+    out = []
+    for name in sorted(present | known):
+        gone = name not in present
+        if gone:                            # a VPN or USB adapter that is gone now: show its history
+            kind, label = next((("vpn", l) for p, l in VPN_NAMES if name.startswith(p)), ("ethernet", "Ethernet"))
+            if name.startswith("wl"):
+                kind, label = "wifi", "Wi-Fi"
+        else:
+            kind, label = iface_kind(name)
+            if not kind:
+                continue
+        state, ips = addrs.get(name, ("down", []))
+        c = {"name": name, "kind": kind, "label": label, "addresses": ips, "internet": name in internet}
+        up = not gone and state in ("up", "unknown")
+        if kind == "wifi" and not gone:
+            info = iw_info(name, ["info"])
+            if info.get("type") == "AP":
+                c.update(kind="hotspot", label="Wi-Fi hotspot", ssid=info.get("ssid"), devices=slow["clients"],
+                         channel=int(info["channel"]) if "channel" in info else None)
+            else:
+                link = iw_info(name, ["link"])
+                up = up and "ssid" in link
+                c.update(ssid=link.get("ssid"), signal_dbm=int(link["signal_dbm"]) if "signal_dbm" in link else None,
+                         link_mbps=float(link["link_mbps"]) if "link_mbps" in link else None)
+        elif kind == "ethernet" and not gone:
+            up = up and read("/sys/class/net/%s/carrier" % name).strip() == "1"
+            speed = read("/sys/class/net/%s/speed" % name).strip()
+            c["link_mbps"] = int(speed) if speed.lstrip("-").isdigit() and int(speed) > 0 else None
+        c["connected"] = up
+        c["gone"] = gone
+        c.update(series(name, rng, c["kind"] == "hotspot"))
+        now = series(name, "30s", c["kind"] == "hotspot")      # the last 5 seconds, like the card
+        last = [(x, y) for x, y in zip(now["down"][-6:-1], now["up"][-6:-1]) if x is not None]
+        c["now_down"] = round(sum(x for x, _ in last) / len(last)) if last else None
+        c["now_up"] = round(sum(y for _, y in last) / len(last)) if last else None
+        if gone and not c["total_down"] and not c["total_up"] and c["recorded_s"] == 0:
+            continue                        # nothing to show for this range
+        out.append(c)
+    out.sort(key=lambda c: (c["gone"], ORDER.get(c["kind"], 9), c["name"]))
+    return {"range": rng, "connections": out}
+
+
 def later(cmd):
     # reply first, then act, so the browser gets its answer
     threading.Timer(1.5, lambda: subprocess.run(cmd)).start()
@@ -372,6 +558,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"parts": parts()})
         if p == "/api/doctor":
             return self.send(200, doctor())
+        if p == "/api/network":
+            return self.send(200, network(parse_qs(urlsplit(self.path).query).get("range", ["30s"])[0]))
         if p == "/api/clients":
             ip = self.headers.get("X-Real-IP") or self.client_address[0]
             return self.send(200, {"clients": clients(ip), "you_ip": ip})
@@ -394,6 +582,13 @@ class H(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
+def stop(*_):
+    net_save()
+    os._exit(0)
+
+
 if __name__ == "__main__":
+    net_load()
+    signal.signal(signal.SIGTERM, stop)
     threading.Thread(target=sampler, daemon=True).start()
     ThreadingHTTPServer((HOST, PORT), H).serve_forever()

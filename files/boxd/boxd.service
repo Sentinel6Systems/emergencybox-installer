@@ -12,6 +12,9 @@ Environment=BOXD_HOTSPOT_IF={{HOTSPOT_IF}}
 Environment=BOXD_DISKS=/
 Environment=BOXD_CONTENT={{CONTENT_DIR}}
 Environment=BOXD_MAPS={{FIELDMAP_DIR}}/data
+# Network history (24 hours and a week), saved every 5 minutes and when boxd stops
+StateDirectory=boxd
+Environment=BOXD_STATE=/var/lib/boxd
 Restart=always
 RestartSec=3
 NoNewPrivileges=yes

@@ -56,7 +56,7 @@
    <div class="st lvl" id="sTemp"><span>CPU TEMP</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sMem"><span>MEMORY</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sDisk"><span>STORAGE</span><b>–</b><div class="meter"><i></i></div></div>
-   <div class="st" id="sNet"><span>NETWORK</span><b>–</b><em>&nbsp;</em></div>
+   <button class="st tap" id="sNet" type="button" aria-haspopup="dialog"><span>NETWORK</span><b>–</b><em>&nbsp;</em></button>
    <button class="st tap" id="sCli" type="button" aria-haspopup="dialog"><span>CONNECTED DEVICES</span><b>–</b><em>tap for details ›</em></button>
    <div class="st lvl" id="sPwr"><span>POWER SUPPLY</span><b>–</b><em>&nbsp;</em></div>
    <div class="st" id="sUp"><span>UPTIME</span><b>–</b><em>since last start</em></div>
@@ -77,6 +77,17 @@
 <dialog id="devDlg" class="wide" aria-labelledby="devT">
  <div class="dhead"><div><h3 id="devT">Connected devices</h3><small class="mono" id="devSub">UPDATING…</small></div><button class="btn x" type="button" data-close>Close</button></div>
  <div class="dlist" id="devList"></div>
+</dialog>
+
+<dialog id="netDlg" class="wide" aria-labelledby="netT">
+ <div class="dhead"><div><h3 id="netT">Network</h3><small class="mono" id="netSub">UPDATING…</small></div><button class="btn x" type="button" data-close>Close</button></div>
+ <div class="chips nrange" id="netRange" role="group" aria-label="Time range">
+  <button class="chip" type="button" data-r="30s" aria-pressed="true">30 s</button>
+  <button class="chip" type="button" data-r="5m" aria-pressed="false">5 min</button>
+  <button class="chip" type="button" data-r="24h" aria-pressed="false">24 h</button>
+  <button class="chip" type="button" data-r="1w" aria-pressed="false">1 week</button>
+ </div>
+ <div class="dlist" id="netList"></div>
 </dialog>
 
 <dialog id="pwrDlg">
@@ -256,7 +267,7 @@ const render = d => {
   cell('sMem', `${GB(d.mem_used)}<small>/ ${GB(d.mem_total)} GB</small>`, mp, lvlPct(mp, 80, 92));
   const dk = d.disks[0];
   if (dk) { const dp = dk.used / dk.total * 100; cell('sDisk', `${Math.round(dk.used/1e9)}<small>/ ${Math.round(dk.total/1e9)} GB</small>`, dp, lvlPct(dp, 85, 95)); }
-  cell('sNet', `${(d.net_tx_mbps + d.net_rx_mbps).toFixed(1)}<small>Mb/s</small>`, null, null, `↓ ${d.net_tx_mbps.toFixed(1)}  ↑ ${d.net_rx_mbps.toFixed(1)}`);
+  cell('sNet', `${(d.net_tx_mbps + d.net_rx_mbps).toFixed(1)}<small>Mb/s</small>`, null, null, `↓ ${d.net_tx_mbps.toFixed(1)}  ↑ ${d.net_rx_mbps.toFixed(1)}  ›`);
   cell('sCli', d.clients == null ? '–' : String(d.clients), null, null);
   const pw = d.power;
   if (!pw) cell('sPwr', '–', null, null, 'not available');
@@ -328,6 +339,85 @@ const loadDevs = async () => {
 $('sCli').addEventListener('click', () => { $('devList').innerHTML = ''; dd.showModal(); loadDevs(); });
 dd.addEventListener('close', () => clearTimeout(devTimer));
 dd.addEventListener('click', e => { if (e.target === dd || e.target.closest('[data-close]')) dd.close(); });
+
+/* ---------- network: each connection and its traffic over time ---------- */
+const NI = {
+ hotspot:'<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M2 9a14.5 14.5 0 0 1 20 0"/>',
+ wifi:'<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',
+ ethernet:'<path d="M5 4h14v11h-4v3h-6v-3H5z"/><path d="M9 4v4M12 4v4M15 4v4M12 18v3"/>',
+ vpn:'<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><rect x="9" y="11" width="6" height="5"/><path d="M10 11V9.5a2 2 0 0 1 4 0V11"/>'
+};
+const RANGE_AGO = {'30s':'30 s ago', '5m':'5 min ago', '24h':'24 h ago', '1w':'7 days ago'};
+const RANGE_EVERY = {'30s':2000, '5m':5000, '24h':30000, '1w':60000};
+const rate = b => b == null ? '–' : b >= 1e6 ? (b/1e6).toFixed(1)+' Mb/s' : b >= 1e3 ? (b/1e3).toFixed(0)+' kb/s' : Math.round(b)+' b/s';
+const pair = (d, u, f) => `↓ ${f(d)} &nbsp;↑ ${f(u)}`;
+// Down is filled, up is a dashed line. Gaps (box off) stay empty.
+const chart = (c, rng) => {
+  const W = 600, H = 110, n = c.down.length, most = Math.max(1000, ...c.down.filter(v => v != null), ...c.up.filter(v => v != null)), top = most * 1.1;
+  const x = i => (n > 1 ? i / (n - 1) : 0) * W, y = v => H - v / top * H;
+  const runs = vs => { const out = []; let cur = null;
+    vs.forEach((v, i) => { if (v == null) cur = null; else { if (!cur) out.push(cur = []); cur.push([x(i), y(v)]); } }); return out; };
+  const line = r => 'M' + r.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L');
+  const dn = runs(c.down), up = runs(c.up);
+  const area = dn.map(r => line(r.length > 1 ? r : [r[0], [r[0][0] + W / n, r[0][1]]]) + `L${(r.length > 1 ? r[r.length-1][0] : r[0][0] + W / n).toFixed(1)},${H}L${r[0][0].toFixed(1)},${H}Z`).join('');
+  return `<div class="nchart"><div class="nleg mono"><span><i class="dn"></i>DOWN</span><span><i class="up"></i>UP</span><b>${rate(most)}</b></div>
+   <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Traffic over the last ${RANGE_AGO[rng].replace(' ago', '')}">
+    <path class="ga" d="${area}"/>${dn.map(r => `<path class="gd" d="${line(r)}"/>`).join('')}${up.map(r => `<path class="gu" d="${line(r)}"/>`).join('')}</svg>
+   <div class="nax mono"><span>${RANGE_AGO[rng]}</span><span>now</span></div></div>`;
+};
+const connCard = (c, rng) => {
+  const row = (k, v) => `<div><dt class="mono">${k}</dt><dd>${v}</dd></div>`;
+  const title = c.kind === 'vpn' ? `${esc(c.label)}${c.label === 'VPN' ? '' : ' VPN'}` : esc(c.label);
+  const state = c.gone ? 'NOT THERE NOW' : c.connected ? (c.kind === 'hotspot' ? 'ON' : 'CONNECTED') : 'NOT CONNECTED';
+  const spec = {
+    hotspot: () => row('NETWORK', `${esc(c.ssid) || '–'}${c.channel ? ` <i>channel ${c.channel}</i>` : ''}`) + row('DEVICES', c.devices == null ? '–' : c.devices),
+    wifi: () => row('NETWORK', esc(c.ssid) || '–') + row('SIGNAL', sig(c.signal_dbm)),
+    ethernet: () => row('LINK SPEED', c.link_mbps ? c.link_mbps + ' Mb/s' : '–') + row('INTERFACE', `<span class="mono">${esc(c.name)}</span>`),
+    vpn: () => row('SERVICE', esc(c.label)) + row('INTERFACE', `<span class="mono">${esc(c.name)}</span>`),
+  }[c.kind];
+  const hrs = s => s < 120 ? s + ' s' : s < 7200 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(s < 36000 ? 1 : 0) + ' h';
+  return `<div class="dev${c.connected ? '' : ' down'}"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NI[c.kind]}</svg>
+   <b>${title}</b><span class="tags">${c.internet ? '<span class="tag me mono">INTERNET</span>' : ''}<span class="tag${c.connected ? ' me' : ''} mono">${state}</span><span class="tag mono">${esc(c.name)}</span></span></div>
+   <dl>${row('NOW', pair(c.now_down, c.now_up, rate))}
+   ${row('ADDRESS', c.addresses.length ? `<span class="mono">${c.addresses.map(esc).join('<br>')}</span>` : '–')}
+   ${spec ? spec() : ''}
+   ${row('AVERAGE', pair(c.avg_down, c.avg_up, rate))}
+   ${row('PEAK', pair(c.peak_down, c.peak_up, rate))}
+   ${row('DATA', pair(c.total_down, c.total_up, bytes))}
+   ${row('RECORDED', c.recorded_s ? hrs(c.recorded_s) + (c.recorded_s < c.step_s * c.down.length * 0.95 ? ' <i>box was off or just started</i>' : '') : '–')}</dl>
+   ${chart(c, rng)}</div>`;
+};
+const demoNet = rng => {   // preview only (page opened away from the box); made-up values
+  const [step, n] = {'30s':[1,30], '5m':[5,60], '24h':[300,288], '1w':[3600,168]}[rng];
+  const wave = (b, a, k) => Array.from({length:n}, (_, i) => Math.max(0, Math.round(b + a * Math.sin(i / 5 + k) + a * Math.random() / 2)));
+  const mk = (o, b, a) => { const d = wave(b, a, 0), u = wave(b / 8, a / 8, 2), sum = v => v.reduce((x, y) => x + y, 0);
+    return {...o, step_s:step, down:d, up:u, now_down:d[n-2], now_up:u[n-2], avg_down:sum(d)/n, avg_up:sum(u)/n, peak_down:Math.max(...d), peak_up:Math.max(...u),
+      total_down:sum(d)/8*step, total_up:sum(u)/8*step, recorded_s:step*n, gone:false}; };
+  return [mk({name:'wlan0', kind:'hotspot', label:'Wi-Fi hotspot', ssid:'{{WIFI_SSID}}', channel:6, devices:3, addresses:['192.0.2.1'], connected:true, internet:false}, 4e6, 3e6),
+          mk({name:'eth0', kind:'ethernet', label:'Ethernet', link_mbps:1000, addresses:['198.51.100.20'], connected:true, internet:true}, 3e6, 2e6),
+          mk({name:'tailscale0', kind:'vpn', label:'Tailscale', addresses:['203.0.113.7'], connected:true, internet:false}, 2e5, 1e5)];
+};
+const nd = $('netDlg');
+let netRange = '30s', netTimer = null;
+const loadNet = async () => {
+  clearTimeout(netTimer);
+  const rng = netRange;
+  try {
+    const list = onBoxHost ? (await (await fetch('/api/network?range=' + rng, {cache:'no-store'})).json()).connections : demoNet(rng);
+    if (rng !== netRange) return;     // the range changed while this was loading
+    const kinds = new Set(list.map(c => c.kind === 'hotspot' ? 'wifi-ap' : c.kind));
+    const none = [['ethernet', 'No Ethernet port'], ['wifi', 'No Wi-Fi connection to another network'], ['vpn', 'No VPN set up']].filter(([k]) => !kinds.has(k)).map(([, t]) => t);
+    $('netList').innerHTML = (list.length ? list.map(c => connCard(c, rng)).join('') : '<p class="empty">No connections found.</p>')
+      + (none.length ? `<p class="nnone mono">${none.join(' · ').toUpperCase()}</p>` : '');
+    $('netSub').textContent = onBoxHost ? `DOWN = TOWARD THE PEOPLE USING THE BOX · UPDATES EVERY ${RANGE_EVERY[rng] / 1000} S` : 'PREVIEW: SAMPLE NUMBERS';
+  } catch { $('netSub').textContent = 'COULD NOT LOAD THE NETWORK DETAILS'; }
+  if (nd.open) netTimer = setTimeout(loadNet, RANGE_EVERY[netRange]);
+};
+$('netRange').addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return;
+  netRange = b.dataset.r; $('netRange').querySelectorAll('[data-r]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); loadNet(); });
+$('sNet').addEventListener('click', () => { $('netList').innerHTML = ''; nd.showModal(); loadNet(); });
+nd.addEventListener('close', () => clearTimeout(netTimer));
+nd.addEventListener('click', e => { if (e.target === nd || e.target.closest('[data-close]')) nd.close(); });
 
 pd.addEventListener('click', e => { if (e.target === pd || e.target.closest('[data-close]')) pd.close(); });
 }

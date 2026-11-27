@@ -114,6 +114,21 @@ dialog.wide{max-width:min(680px,calc(100vw - 16px))}
 .bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:6px;vertical-align:-1px}
 .bars s{width:4px;background:var(--line)}.bars s.on{background:var(--sig)}
 .empty{color:var(--muted);padding:20px 0;text-align:center}
+/* network details */
+.nrange{margin:0;padding:12px 20px 0}
+.dev.down .top svg{color:var(--muted)}
+.nchart{padding:10px 14px 12px;border-top:1px solid var(--line)}
+.nchart svg{display:block;width:100%;height:110px;background:linear-gradient(var(--line) 1px,transparent 1px) 0 0/100% 25%;border-bottom:1px solid var(--line)}
+.nchart .ga{fill:color-mix(in srgb,var(--sig) 22%,transparent)}
+.nchart .gd,.nchart .gu{fill:none;stroke-width:1.6;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.nchart .gd{stroke:var(--sig)}.nchart .gu{stroke:var(--ink);stroke-dasharray:4 3}
+.nleg{display:flex;gap:14px;align-items:center;font-size:11px;letter-spacing:.1em;color:var(--muted);margin-bottom:6px}
+.nleg i{display:inline-block;width:14px;height:0;border-top:2px solid var(--sig);margin-right:6px;vertical-align:3px}
+.nleg i.up{border-top:2px dashed var(--ink)}
+.nleg b{margin-left:auto;font-weight:500;color:var(--muted)}
+.nax{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+.nnone{font-size:11.5px;letter-spacing:.08em;color:var(--muted);margin:2px 0 0;text-align:center}
+@media (max-width:600px){.nrange{padding:10px 12px 0}.nchart{padding:8px 10px 10px}}
 @media (max-width:600px){.dev dl div{padding:7px 10px}.dev dd{font-size:13.5px}.dev .top{padding:10px}.dlist{padding:10px 12px 14px}.dhead{padding:14px 12px}}
 
 /* foot */
