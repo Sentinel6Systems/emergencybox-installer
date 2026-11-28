@@ -271,15 +271,17 @@ def game_systems():
         return []
 
 
-def list_files(d, depth=2):
+def list_files(d, depth=2, ends=None):
+    """Files up to depth folder levels (1 = only d itself) with these endings (None = any)."""
     out = []
     if not os.path.isdir(d):
         return out
     for root, dirs, files in os.walk(d):
         rel = os.path.relpath(root, d)
-        dirs[:] = [x for x in dirs if not x.startswith(".") and x != "lost+found" and (rel.count(os.sep) + 1 < depth or rel == ".")]
+        level = 0 if rel == "." else rel.count(os.sep) + 1
+        dirs[:] = [x for x in dirs if not x.startswith(".") and x != "lost+found" and level + 1 < depth]
         for f in sorted(files):
-            if f.startswith("."):
+            if f.startswith(".") or (ends and not f.lower().endswith(ends)):
                 continue
             p = os.path.join(root, f)
             try:
@@ -291,14 +293,16 @@ def list_files(d, depth=2):
 
 def content():
     out = {}
-    for kind, (sub, _, label) in KINDS.items():
+    for kind, (sub, ends, label) in KINDS.items():
         d = os.path.join(CONTENT_RW, sub)
         if kind == "games":
-            groups = [{"id": s, "name": s, "files": list_files(os.path.join(d, s), 1)} for s in game_systems()]
+            groups = [{"id": s, "name": s, "files": list_files(os.path.join(d, s), 1, ends)} for s in game_systems()]
         elif kind == "movies":
-            groups = [{**l, "files": list_files(os.path.join(d, l["id"]), 3)} for l in jf_libs()]
+            groups = [{**l, "files": list_files(os.path.join(d, l["id"]), 3, ends)} for l in jf_libs()]
+        elif kind == "maps":        # only the map layers: the map server keeps its own working files beside them
+            groups = [{"id": "", "name": label, "files": [f for f in list_files(d, 1, ends) if f["name"][:-len(".mbtiles")] in MAP_LAYERS]}]
         else:
-            groups = [{"id": "", "name": label, "files": list_files(d, 1)}]
+            groups = [{"id": "", "name": label, "files": list_files(d, 1, ends)}]
         out[kind] = {"label": label, "groups": groups}
     out["space"] = free(CONTENT_RW)
     return out
