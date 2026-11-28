@@ -57,12 +57,12 @@
    <div class="st lvl" id="sTemp"><span>CPU TEMP</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sMem"><span>MEMORY</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sDisk"><span>STORAGE</span><b>–</b><div class="meter"><i></i></div></div>
-   <button class="st tap" id="sNet" type="button" aria-haspopup="dialog"><span>NETWORK · Mb/s</span><b class="two">–</b><em>tap for details ›</em></button>
-   <button class="st tap" id="sCli" type="button" aria-haspopup="dialog"><span>CONNECTED DEVICES</span><b>–</b><em>tap for details ›</em></button>
+   <button class="st tap" id="sWifi" type="button" aria-haspopup="dialog" data-net="wifi"><span>WI-FI</span><b>–</b><em>&nbsp;</em></button>
+   <button class="st tap" id="sEth" type="button" aria-haspopup="dialog" data-net="ethernet"><span>ETHERNET</span><b>–</b><em>&nbsp;</em></button>
+   <button class="st tap" id="sCli" type="button" aria-haspopup="dialog"><span>CONNECTED DEVICES</span><b>–</b><em>on the box's Wi-Fi</em></button>
    <div class="st lvl" id="sPwr"><span>POWER SUPPLY</span><b>–</b><em>&nbsp;</em></div>
-   <div class="st" id="sUp"><span>UPTIME</span><b>–</b><em>since last start</em></div>
   </div>
-  <p class="sysnote mono" id="sysNote">CPU, MEMORY AND NETWORK ARE 5-SECOND AVERAGES</p>
+  <p class="sysnote mono"><span class="upm" id="upM"></span><span id="sysNote">CPU, MEMORY AND NETWORK ARE 5-SECOND AVERAGES</span></p>
  </section>
 </main>
 
@@ -276,10 +276,13 @@ const render = d => {
   cell('sMem', `${GB(d.mem_used)}<small>/ ${GB(d.mem_total)} GB</small>`, mp, lvlPct(mp, 80, 92));
   const dk = d.disks[0];
   if (dk) { const dp = dk.used / dk.total * 100; cell('sDisk', `${Math.round(dk.used/1e9)}<small>/ ${Math.round(dk.total/1e9)} GB</small>`, dp, lvlPct(dp, 85, 95)); }
-  const mb = v => v >= 100 ? v.toFixed(0) : v.toFixed(1), link = (k, t) => { const l = (d.net || {})[k];
-    return `<span>${t}</span>${l ? `↓ ${mb(l.down_mbps)} <small>↑ ${mb(l.up_mbps)}</small>` : '<small>none</small>'}`; };
-  $('sNet').querySelector('b').innerHTML = link('wifi', 'WI-FI') + '<br>' + link('ethernet', 'ETHERNET');
-  $('liveStat').querySelector('span').textContent = d.uplink ? `ONLINE · INTERNET VIA ${d.uplink.label.toUpperCase()}` : 'OFFLINE · LOCAL NETWORK';
+  const mb = v => v >= 100 ? v.toFixed(0) : v.toFixed(1);
+  [['sWifi', 'wifi'], ['sEth', 'ethernet']].forEach(([id, k]) => { const l = (d.net || {})[k];
+    if (l) cell(id, `↓ ${mb(l.down_mbps)}<small>Mb/s</small>`, null, null, `↑ ${mb(l.up_mbps)} Mb/s`);
+    else cell(id, '–', null, null, 'not connected'); });
+  const up = 'UP ' + fmtUp(d.uptime_s).toUpperCase();
+  $('liveStat').querySelector('span').textContent = (d.uplink ? `ONLINE · INTERNET VIA ${d.uplink.label.toUpperCase()}` : 'OFFLINE · LOCAL NETWORK') + ' · ' + up;
+  $('upM').textContent = up + ' · ';   // phones hide the top bar's status, so uptime shows here
   cell('sCli', d.clients == null ? '–' : String(d.clients), null, null);
   const pw = d.power || {}, wall = pw.source === 'external';
   battery(pw);
@@ -289,8 +292,7 @@ const render = d => {
   else if (pw.undervolt_now) cell('sPwr', 'LOW', null, 'hot', 'under-voltage: use a better supply');
   else if (pw.throttled_now) cell('sPwr', 'THROTTLED', null, 'warm', 'slowed down to protect itself');
   else if (pw.undervolt_since_boot) cell('sPwr', 'OK', null, 'warm', 'dipped low earlier since start');
-  else cell('sPwr', 'OK', null, 'ok', wall ? 'on wall power, no problems' : 'no problems since start');
-  cell('sUp', fmtUp(d.uptime_s), null, null);
+  else cell('sPwr', 'OK', null, 'ok', wall ? 'on wall power' : 'since last start');
 };
 const onBoxHost = ON_BOX;
 let fails = 0, t = 0;
@@ -418,24 +420,26 @@ const demoNet = rng => {   // preview only (page opened away from the box); made
           mk({name:'tailscale0', kind:'vpn', label:'Tailscale', addresses:['203.0.113.7'], connected:true, internet:false}, 2e5, 1e5)];
 };
 const nd = $('netDlg');
-let netRange = '30s', netTimer = null;
+let netRange = '30s', netTimer = null, netShow = 'wifi';
+// Each tile opens its own connections: Wi-Fi = the hotspot and any Wi-Fi link; Ethernet = cables and VPNs
+const NET_TILE = {wifi: {t: 'Wi-Fi', kinds: ['hotspot', 'wifi'], none: 'No Wi-Fi adapter found.'},
+                  ethernet: {t: 'Ethernet', kinds: ['ethernet', 'vpn'], none: 'No Ethernet port found.'}};
 const loadNet = async () => {
   clearTimeout(netTimer);
   const rng = netRange;
   try {
     const list = onBoxHost ? (await (await fetch('/api/network?range=' + rng, {cache:'no-store'})).json()).connections : demoNet(rng);
     if (rng !== netRange) return;     // the range changed while this was loading
-    const kinds = new Set(list.map(c => c.kind === 'hotspot' ? 'wifi-ap' : c.kind));
-    const none = [['ethernet', 'No Ethernet port'], ['wifi', 'No Wi-Fi connection to another network'], ['vpn', 'No VPN set up']].filter(([k]) => !kinds.has(k)).map(([, t]) => t);
-    $('netList').innerHTML = (list.length ? list.map(c => connCard(c, rng)).join('') : '<p class="empty">No connections found.</p>')
-      + (none.length ? `<p class="nnone mono">${none.join(' · ').toUpperCase()}</p>` : '');
+    const tile = NET_TILE[netShow], mine = list.filter(c => tile.kinds.includes(c.kind));
+    $('netList').innerHTML = mine.length ? mine.map(c => connCard(c, rng)).join('') : `<p class="empty">${tile.none}</p>`;
     $('netSub').textContent = onBoxHost ? `DOWN = TOWARD THE PEOPLE USING THE BOX · UPDATES EVERY ${RANGE_EVERY[rng] / 1000} S` : 'PREVIEW: SAMPLE NUMBERS';
   } catch { $('netSub').textContent = 'COULD NOT LOAD THE NETWORK DETAILS'; }
   if (nd.open) netTimer = setTimeout(loadNet, RANGE_EVERY[netRange]);
 };
 $('netRange').addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return;
   netRange = b.dataset.r; $('netRange').querySelectorAll('[data-r]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); loadNet(); });
-$('sNet').addEventListener('click', () => { $('netList').innerHTML = ''; nd.showModal(); loadNet(); });
+document.querySelectorAll('[data-net]').forEach(b => b.addEventListener('click', () => {
+  netShow = b.dataset.net; $('netT').textContent = NET_TILE[netShow].t; $('netList').innerHTML = ''; nd.showModal(); loadNet(); }));
 nd.addEventListener('close', () => clearTimeout(netTimer));
 nd.addEventListener('click', e => { if (e.target === nd || e.target.closest('[data-close]')) nd.close(); });
 

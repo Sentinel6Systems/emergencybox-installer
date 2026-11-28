@@ -72,13 +72,15 @@ h1{margin:0 0 6px;font-size:clamp(28px,4.2vw,42px);line-height:1.08;font-weight:
 .main{display:flex;flex-direction:column}
 .sys{order:2}.svc{order:3}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);background:var(--panel)}
-.st{padding:12px 16px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+/* every tile: label, value, then a bar or one caption line, on the same baselines */
+.st{padding:12px 16px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;grid-template-rows:auto auto 20px;align-items:center;position:relative}
 .st:nth-child(4n){border-right:0}.st:nth-last-child(-n+4){border-bottom:0}
 .st span{display:block;font-size:11.5px;letter-spacing:.12em;color:var(--muted)}
 .st b{display:block;font-size:22px;font-weight:600;line-height:1.3;white-space:nowrap;font-variant-numeric:tabular-nums}
 .st b small{font-size:13px;font-weight:500;color:var(--muted);margin-left:3px}
 .st em{display:block;font-style:normal;font-size:12.5px;color:var(--muted);white-space:pre}
-.meter{height:4px;background:var(--panel2);margin-top:8px}
+.meter{height:4px;background:var(--panel2)}
+.st em{overflow:hidden;text-overflow:ellipsis}
 .meter i{display:block;height:100%;width:0;background:var(--sig);transition:width .6s}
 .ok{--lvl:var(--sig)}.warm{--lvl:light-dark(#9a6a00,#e2b13c)}.hot{--lvl:var(--warn)}
 .lvl b{color:var(--lvl,var(--ink))}.lvl .meter i{background:var(--lvl,var(--sig))}
@@ -87,11 +89,14 @@ h1{margin:0 0 6px;font-size:clamp(28px,4.2vw,42px);line-height:1.08;font-weight:
 @media (max-width:900px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}
  .st:nth-child(4n){border-right:1px solid var(--line)}.st:nth-child(2n){border-right:0}
  .st:nth-last-child(-n+4){border-bottom:1px solid var(--line)}.st:nth-last-child(-n+2){border-bottom:0}}
-@media (max-width:600px){.sys{order:4}.st{padding:10px 12px 12px}.st b{font-size:19px}.st em{white-space:pre-wrap}}
+@media (max-width:600px){.sys{order:4}.st{padding:10px 12px 12px}.st b{font-size:19px}}
 
 
 .st.tap{font:inherit;color:inherit;text-align:left;background:transparent;border-top:0;border-left:0;cursor:pointer;width:100%}
-.st.tap:hover{background:var(--panel2)}.st.tap:hover em{color:var(--sig)}
+.st.tap::after{content:"›";position:absolute;right:14px;top:9px;font-size:17px;color:var(--muted)}
+.st.tap:hover{background:var(--panel2)}.st.tap:hover::after{color:var(--sig)}
+.upm{display:none}
+@media (max-width:600px){.upm{display:inline}}
 dialog.wide{max-width:min(680px,calc(100vw - 16px))}
 .dhead{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
 .dhead h3{margin:0;font-size:20px}.dhead .x{margin-left:auto}
@@ -114,11 +119,6 @@ dialog.wide{max-width:min(680px,calc(100vw - 16px))}
 .bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:6px;vertical-align:-1px}
 .bars s{width:4px;background:var(--line)}.bars s.on{background:var(--sig)}
 .empty{color:var(--muted);padding:20px 0;text-align:center}
-/* network card: one line each for Wi-Fi and Ethernet */
-.st b.two{font-size:15px;line-height:1.55}
-.st b.two span{display:inline-block;width:7.4em;font-size:11px;font-weight:500;letter-spacing:.1em;color:var(--muted)}
-.st b.two small{margin-left:6px}
-@media (max-width:600px){.st b.two{font-size:13.5px}.st b.two span{width:auto;display:block;margin-top:2px}}
 
 /* network details */
 .nrange{margin:0;padding:12px 20px 0}
@@ -130,7 +130,6 @@ dialog.wide{max-width:min(680px,calc(100vw - 16px))}
 .nleg i.up{border-top-color:var(--up)}
 .nleg b{margin-left:auto;font-weight:500;color:var(--muted)}
 .nax{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
-.nnone{font-size:11.5px;letter-spacing:.08em;color:var(--muted);margin:2px 0 0;text-align:center}
 @media (max-width:600px){.nrange{padding:10px 12px 0}.nchart{padding:8px 10px 10px}}
 @media (max-width:600px){.dev dl div{padding:7px 10px}.dev dd{font-size:13.5px}.dev .top{padding:10px}.dlist{padding:10px 12px 14px}.dhead{padding:14px 12px}}
 
