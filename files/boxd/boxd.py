@@ -396,8 +396,9 @@ def doctor():
 
 # ---------- network: each connection and its traffic over time ----------
 # range -> (seconds per point, points kept). Every second's traffic is added to all four.
-RANGES = {"30s": (1, 30), "5m": (5, 60), "24h": (300, 288), "1w": (3600, 168)}
-KEEP = ("5m", "24h", "1w")              # written to NET_HISTORY
+RANGES = {"30s": (1, 30), "5m": (5, 60), "15m": (15, 60), "60m": (60, 60),
+          "12h": (300, 144), "24h": (300, 288), "1w": (3600, 168)}
+KEEP = ("5m", "15m", "60m", "12h", "24h", "1w")   # written to NET_HISTORY
 SKIP_IF = ("lo", "docker", "veth", "br-", "virbr", "p2p-")
 VPN_NAMES = (("tailscale", "Tailscale"), ("wt", "NetBird"), ("wg", "WireGuard"), ("zt", "ZeroTier"),
              ("tun", "VPN"), ("tap", "VPN"), ("ppp", "VPN"))
@@ -435,6 +436,10 @@ def net_load():
         for r in KEEP:
             for name, pts in d.get(r, {}).items():
                 hist[r][name] = {int(k): v for k, v in pts.items()}
+        for name, pts in hist["24h"].items():     # same 5-minute points: 12 h fills its gaps from the 24 h history
+            mine = hist["12h"].setdefault(name, {})
+            for k, v in pts.items():
+                mine.setdefault(k, list(v))
     except (OSError, ValueError, AttributeError, TypeError):
         pass
 

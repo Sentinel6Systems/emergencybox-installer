@@ -85,6 +85,9 @@
  <div class="chips nrange" id="netRange" role="group" aria-label="Time range">
   <button class="chip" type="button" data-r="30s" aria-pressed="true">30 s</button>
   <button class="chip" type="button" data-r="5m" aria-pressed="false">5 min</button>
+  <button class="chip" type="button" data-r="15m" aria-pressed="false">15 min</button>
+  <button class="chip" type="button" data-r="60m" aria-pressed="false">60 min</button>
+  <button class="chip" type="button" data-r="12h" aria-pressed="false">12 h</button>
   <button class="chip" type="button" data-r="24h" aria-pressed="false">24 h</button>
   <button class="chip" type="button" data-r="1w" aria-pressed="false">1 week</button>
  </div>
@@ -365,8 +368,8 @@ const NI = {
  ethernet:'<path d="M5 4h14v11h-4v3h-6v-3H5z"/><path d="M9 4v4M12 4v4M15 4v4M12 18v3"/>',
  vpn:'<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><rect x="9" y="11" width="6" height="5"/><path d="M10 11V9.5a2 2 0 0 1 4 0V11"/>'
 };
-const RANGE_AGO = {'30s':'30 s ago', '5m':'5 min ago', '24h':'24 h ago', '1w':'7 days ago'};
-const RANGE_EVERY = {'30s':2000, '5m':5000, '24h':30000, '1w':60000};
+const RANGE_AGO = {'30s':'30 s ago', '5m':'5 min ago', '15m':'15 min ago', '60m':'60 min ago', '12h':'12 h ago', '24h':'24 h ago', '1w':'7 days ago'};
+const RANGE_EVERY = {'30s':2000, '5m':5000, '15m':15000, '60m':30000, '12h':30000, '24h':30000, '1w':60000};
 const rate = b => b == null ? '–' : b >= 1e6 ? (b/1e6).toFixed(1)+' Mb/s' : b >= 1e3 ? (b/1e3).toFixed(0)+' kb/s' : Math.round(b)+' b/s';
 const pair = (d, u, f) => `↓ ${f(d)} &nbsp;↑ ${f(u)}`;
 // Down is filled, up is a dashed line. Gaps (box off) stay empty.
@@ -410,7 +413,7 @@ const connCard = (c, rng) => {
    ${chart(c, rng)}</div>`;
 };
 const demoNet = rng => {   // preview only (page opened away from the box); made-up values
-  const [step, n] = {'30s':[1,30], '5m':[5,60], '24h':[300,288], '1w':[3600,168]}[rng];
+  const [step, n] = {'30s':[1,30], '5m':[5,60], '15m':[15,60], '60m':[60,60], '12h':[300,144], '24h':[300,288], '1w':[3600,168]}[rng];
   const wave = (b, a, k) => Array.from({length:n}, (_, i) => Math.max(0, Math.round(b + a * Math.sin(i / 5 + k) + a * Math.random() / 2)));
   const mk = (o, b, a) => { const d = wave(b, a, 0), u = wave(b / 8, a / 8, 2), sum = v => v.reduce((x, y) => x + y, 0);
     return {...o, step_s:step, down:d, up:u, now_down:d[n-2], now_up:u[n-2], avg_down:sum(d)/n, avg_up:sum(u)/n, peak_down:Math.max(...d), peak_up:Math.max(...u),
