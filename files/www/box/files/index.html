@@ -233,7 +233,7 @@ async function loadList() {
     <button class="fr${x.dir ? ' dir' : ''}" type="button" data-i="${i}">
       ${svg(x.dir ? 'dir' : kindIc(x.name))}<b>${esc(x.label || x.name)}</b>
       <small>${x.dir ? 'Folder' : size(x.size)} · ${when(x.mtime)}</small>
-      ${x.dir ? '<span class="more fm" data-m title="Folder options: rename, move, delete">⋯</span>' : '<span class="more" aria-hidden="true">⋯</span>'}</button>`).join('')
+      <span class="more fm" data-m title="Options: rename, move, copy, delete">⋯</span></button>`).join('')
     : `<p class="empty">${path ? 'This folder is empty.' : 'Nothing here yet. Use “Upload files” to add some.'}</p>`;
 }
 
@@ -245,9 +245,13 @@ function open(r, p, replace) {
 
 $('drives').addEventListener('click', e => { const b = e.target.closest('[data-root]'); if (b) open(b.dataset.root, ''); });
 $('list').addEventListener('click', e => {
+  // One rule for files and folders: tap the row to open it, tap ⋯ for its options.
   const b = e.target.closest('.fr'); if (!b) return;
   const x = ITEMS[+b.dataset.i];
-  if (x.dir) e.target.closest('[data-m]') ? folderMenu(x) : open(root, join(path, x.name)); else fileMenu(x);
+  if (e.target.closest('[data-m]')) x.dir ? folderMenu(x) : fileMenu(x);
+  else if (x.dir) open(root, join(path, x.name));
+  else if (VIEW.test(x.name)) window.open(getUrl(join(path, x.name)), '_blank', 'noopener');
+  else fileMenu(x);                                // nothing the browser can show: the options have Download
 });
 addEventListener('popstate', () => { const s = params(); root = s.get('root') || 'my'; path = s.get('path') || ''; drawDrives(); loadList(); });
 
@@ -275,13 +279,13 @@ function confirmBox(title, note, okText) {
 const busy = async (fn, okMsg) => { try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(e.message, true); } await loadList(); loadRoots().catch(() => {}); };
 
 /* ---------- file menu ---------- */
+const getUrl = (p, dl) => `${API}/get?${q({root, path: p, ...(dl ? {dl: 1} : {})})}`;
 function fileMenu(x) {
   const p = join(path, x.name), cur = ROOTS.find(r => r.id === root), ro = cur && cur.readonly;
-  const url = (dl) => `${API}/get?${q({root, path: p, ...(dl ? {dl: 1} : {})})}`;
+  const url = dl => getUrl(p, dl);
   $('fName').textContent = x.name;
   $('fMeta').textContent = `${size(x.size)} · ${when(x.mtime)} · ${cur ? cur.name : ''}`;
   const acts = [];
-  if (VIEW.test(x.name)) acts.push(`<a class="btn sig" href="${url(false)}" target="_blank" rel="noopener">Open</a>`);
   acts.push(`<a class="btn" href="${url(true)}" download>Download to this device</a>`);
   if (TEXT.test(x.name) && x.size <= 2097152 && !ro) acts.push(`<button class="btn" type="button" data-a="edit">Edit text</button>`);
   acts.push(`<button class="btn" type="button" data-a="copy">Copy to…</button>`);
@@ -311,22 +315,15 @@ async function itemAction(a, x) {
   }
 }
 
-/* ---------- folder rows menu: the ⋯ on a folder row (also right-click or long-press) ---------- */
-$('list').addEventListener('contextmenu', e => {
-  const b = e.target.closest('.fr.dir'); if (!b) return; e.preventDefault();
-  folderMenu(ITEMS[+b.dataset.i]);
-});
+/* ---------- folder menu: the ⋯ on a folder row ---------- */
 function folderMenu(x) {
   const cur = ROOTS.find(r => r.id === root), ro = cur && cur.readonly;
   $('fName').textContent = x.name; $('fMeta').textContent = 'Folder · ' + when(x.mtime);
-  $('fActs').innerHTML = `<button class="btn sig" type="button" data-a="open">Open folder</button><button class="btn" type="button" data-a="copy">Copy to…</button>` +
+  $('fActs').innerHTML = `<button class="btn" type="button" data-a="copy">Copy to…</button>` +
     (ro ? '' : `<button class="btn" type="button" data-a="move">Move to…</button><button class="btn" type="button" data-a="ren">Rename</button><button class="btn" type="button" data-a="del" style="color:var(--warn)">Delete</button>`);
-  $('fActs').onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; $('fDlg').close(); b.dataset.a === 'open' ? open(root, join(path, x.name)) : itemAction(b.dataset.a, x); };
+  $('fActs').onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; $('fDlg').close(); itemAction(b.dataset.a, x); };
   $('fDlg').showModal();
 }
-// touch: long-press a folder for its menu
-{ let t; $('list').addEventListener('touchstart', e => { const b = e.target.closest('.fr.dir'); if (!b) return; t = setTimeout(() => { t = 'fired'; folderMenu(ITEMS[+b.dataset.i]); }, 600); }, {passive: true});
-  ['touchend', 'touchmove', 'touchcancel'].forEach(ev => $('list').addEventListener(ev, e => { if (t === 'fired' && ev === 'touchend') e.preventDefault(); clearTimeout(t); t = null; })); }
 
 /* ---------- folder picker for copy / move ---------- */
 function pickFolder(title, avoid) {
