@@ -93,6 +93,7 @@ check_config() {
   [[ $MAP_LAT =~ $num && $MAP_LON =~ $num && $MAP_ZOOM =~ ^[0-9]+$ ]] || bad+=" MAP_LAT/MAP_LON/MAP_ZOOM"
   [[ $MYFILES_MAX_GB =~ ^[0-9]+$ ]]   || bad+=" MYFILES_MAX_GB"
   [[ $SPACE_RESERVE_GB =~ ^[0-9]+$ ]] || bad+=" SPACE_RESERVE_GB"
+  [[ $PISUGAR =~ ^(auto|yes|no)$ ]]   || bad+=" PISUGAR(auto, yes or no)"
   local priv='^(10\.[0-9]+|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.[0-9]+\.([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-4])$'
   [[ $HOTSPOT_IP =~ $priv ]] || bad+=" HOTSPOT_IP(auto, or a private address)"
   [[ -z $HOTSPOT_IF || $HOTSPOT_IF =~ ^[a-z0-9]+$ ]] || bad+=" HOTSPOT_IF"

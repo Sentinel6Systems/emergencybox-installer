@@ -114,6 +114,12 @@ dialog.wide{max-width:min(680px,calc(100vw - 16px))}
 .bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:6px;vertical-align:-1px}
 .bars s{width:4px;background:var(--line)}.bars s.on{background:var(--sig)}
 .empty{color:var(--muted);padding:20px 0;text-align:center}
+/* network card: one line each for Wi-Fi and Ethernet */
+.st b.two{font-size:15px;line-height:1.55}
+.st b.two span{display:inline-block;width:7.4em;font-size:11px;font-weight:500;letter-spacing:.1em;color:var(--muted)}
+.st b.two small{margin-left:6px}
+@media (max-width:600px){.st b.two{font-size:13.5px}.st b.two span{width:auto;display:block;margin-top:2px}}
+
 /* network details */
 .nrange{margin:0;padding:12px 20px 0}
 .dev.down .top svg{color:var(--muted)}
@@ -237,6 +243,10 @@ img.gone{visibility:hidden}
 /* a lone card on the last row keeps its normal width instead of stretching (7 cards with My files + Games) */
 @media (min-width:901px){.grid>.bay:last-child:nth-child(3n+1){flex-grow:0}}
 @media (min-width:601px) and (max-width:900px){.grid>.bay:last-child:nth-child(2n+1){flex-grow:0}}
+
+/* PiSugar battery notice, first thing on the page */
+.batt{order:-1;border:1px solid light-dark(#9a6a00,#e2b13c);background:color-mix(in srgb,light-dark(#9a6a00,#e2b13c) 12%,transparent);padding:12px 14px;margin:16px 0 0;font-size:15px}
+.batt b.mono{color:light-dark(#9a6a00,#e2b13c);letter-spacing:.06em;margin-right:6px}
 
 /* box-doctor notice above the cards */
 .doctor{border:1px solid #c9873a;color:#e7b06b;background:rgba(201,135,58,.08);padding:10px 12px;margin:0 0 14px;font-size:13px;letter-spacing:.04em}

@@ -15,7 +15,7 @@
    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><path d="M12 7v10M7 12h10"/></svg>
    {{BOX_NAME_UPPER}}
   </div>
-  <div class="stat mono" id="liveStat"><i></i>OFFLINE · LOCAL NETWORK</div>
+  <div class="stat mono" id="liveStat"><i></i><span>OFFLINE · LOCAL NETWORK</span></div>
   <div class="acts">
    <a class="pwr hide" id="adminLink" href="admin/" aria-label="Admin settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -34,6 +34,7 @@
 </div>
 
 <main class="wrap main">
+ <div class="batt hide" id="batt" role="alert"></div>
  <section class="intro">
   <h1>Everything you need, stored on this box.</h1>
   <p class="lede">No internet required. Pick what you need below, or search the whole library.</p>
@@ -56,7 +57,7 @@
    <div class="st lvl" id="sTemp"><span>CPU TEMP</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sMem"><span>MEMORY</span><b>–</b><div class="meter"><i></i></div></div>
    <div class="st lvl" id="sDisk"><span>STORAGE</span><b>–</b><div class="meter"><i></i></div></div>
-   <button class="st tap" id="sNet" type="button" aria-haspopup="dialog"><span>NETWORK</span><b>–</b><em>&nbsp;</em></button>
+   <button class="st tap" id="sNet" type="button" aria-haspopup="dialog"><span>NETWORK · Mb/s</span><b class="two">–</b><em>tap for details ›</em></button>
    <button class="st tap" id="sCli" type="button" aria-haspopup="dialog"><span>CONNECTED DEVICES</span><b>–</b><em>tap for details ›</em></button>
    <div class="st lvl" id="sPwr"><span>POWER SUPPLY</span><b>–</b><em>&nbsp;</em></div>
    <div class="st" id="sUp"><span>UPTIME</span><b>–</b><em>since last start</em></div>
@@ -258,6 +259,14 @@ const cell = (id, val, pct, lvl, sub) => {
   c.classList.remove('ok','warm','hot'); if (lvl) c.classList.add(lvl);
   if (sub != null && c.querySelector('em')) c.querySelector('em').textContent = sub;
 };
+const mins = s => s == null ? '' : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`;
+// PiSugar battery: a banner above everything while the box runs on battery
+const battery = pw => {
+  const b = $('batt'), on = pw.source === 'battery';
+  b.classList.toggle('hide', !on);
+  if (on) b.innerHTML = `<b class="mono">ON BATTERY · ${mins(pw.on_battery_seconds).toUpperCase()}</b> Plug the box into wall power.`
+    + (pw.shutdown_in_seconds != null ? ` It turns itself off in <b>${mins(pw.shutdown_in_seconds)}</b> to keep its data safe.` : '');
+};
 const lvlPct = (p, w, h) => p >= h ? 'hot' : p >= w ? 'warm' : 'ok';
 const render = d => {
   cell('sCpu', `${Math.round(d.cpu_pct)}<small>%</small>`, d.cpu_pct, lvlPct(d.cpu_pct, 70, 90));
@@ -267,22 +276,29 @@ const render = d => {
   cell('sMem', `${GB(d.mem_used)}<small>/ ${GB(d.mem_total)} GB</small>`, mp, lvlPct(mp, 80, 92));
   const dk = d.disks[0];
   if (dk) { const dp = dk.used / dk.total * 100; cell('sDisk', `${Math.round(dk.used/1e9)}<small>/ ${Math.round(dk.total/1e9)} GB</small>`, dp, lvlPct(dp, 85, 95)); }
-  cell('sNet', `${(d.net_tx_mbps + d.net_rx_mbps).toFixed(1)}<small>Mb/s</small>`, null, null, `↓ ${d.net_tx_mbps.toFixed(1)}  ↑ ${d.net_rx_mbps.toFixed(1)}  ›`);
+  const mb = v => v >= 100 ? v.toFixed(0) : v.toFixed(1), link = (k, t) => { const l = (d.net || {})[k];
+    return `<span>${t}</span>${l ? `↓ ${mb(l.down_mbps)} <small>↑ ${mb(l.up_mbps)}</small>` : '<small>none</small>'}`; };
+  $('sNet').querySelector('b').innerHTML = link('wifi', 'WI-FI') + '<br>' + link('ethernet', 'ETHERNET');
+  $('liveStat').querySelector('span').textContent = d.uplink ? `ONLINE · INTERNET VIA ${d.uplink.label.toUpperCase()}` : 'OFFLINE · LOCAL NETWORK';
   cell('sCli', d.clients == null ? '–' : String(d.clients), null, null);
-  const pw = d.power;
-  if (!pw) cell('sPwr', '–', null, null, 'not available');
+  const pw = d.power || {}, wall = pw.source === 'external';
+  battery(pw);
+  if (pw.source === 'battery') cell('sPwr', 'ON BATTERY', null, pw.undervolt_now ? 'hot' : 'warm',
+    `${pw.undervolt_now ? 'low voltage' : mins(pw.on_battery_seconds)} · plug into wall power`);
+  else if (pw.undervolt_now == null) cell('sPwr', wall ? 'OK' : '–', null, wall ? 'ok' : null, wall ? 'on wall power' : 'not available');
   else if (pw.undervolt_now) cell('sPwr', 'LOW', null, 'hot', 'under-voltage: use a better supply');
   else if (pw.throttled_now) cell('sPwr', 'THROTTLED', null, 'warm', 'slowed down to protect itself');
   else if (pw.undervolt_since_boot) cell('sPwr', 'OK', null, 'warm', 'dipped low earlier since start');
-  else cell('sPwr', 'OK', null, 'ok', 'no problems since start');
+  else cell('sPwr', 'OK', null, 'ok', wall ? 'on wall power, no problems' : 'no problems since start');
   cell('sUp', fmtUp(d.uptime_s), null, null);
 };
 const onBoxHost = ON_BOX;
 let fails = 0, t = 0;
 const demo = () => { t++; const w = Math.sin(t / 4);  // preview away from the box: sample numbers only
   return {ready:true, cpu_pct:22 + 14*w, temp_c:56 + 6*w, temp_level:56 + 6*w >= 65 ? 'warm' : 'ok', mem_used:1.9e9 + 1.5e8*w, mem_total:3.98e9,
-    disks:[{used:71e9, total:118e9}], net_rx_mbps:0.4 + .2*w, net_tx_mbps:6.2 + 3*w, clients:3,
-    power:{undervolt_now:false, throttled_now:false, undervolt_since_boot:false}, uptime_s:93780, load1:0.84}; };
+    disks:[{used:71e9, total:118e9}], net_rx_mbps:0.4 + .2*w, net_tx_mbps:6.2 + 3*w, clients:3, uplink:null,
+    net:{wifi:{down_mbps:6.2 + 3*w, up_mbps:0.4 + .2*w}, ethernet:{down_mbps:1.1 + w, up_mbps:0.2}},
+    power:{undervolt_now:false, throttled_now:false, undervolt_since_boot:false, source:'external'}, uptime_s:93780, load1:0.84}; };
 const poll = async () => {
   try {
     const d = onBoxHost ? await (await fetch(CFG.statsUrl, {cache:'no-store'})).json() : demo();

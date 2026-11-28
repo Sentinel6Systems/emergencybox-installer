@@ -66,6 +66,24 @@ For example, from another computer:
 rsync -av --progress my-zims/ admin@box.lan:/srv/box/content/zims/
 ```
 
+## Battery (PiSugar S Plus)
+
+If the box shows **ON BATTERY**, plug it into wall power.
+
+The PiSugar S Plus has no battery gauge, so the box can't show a charge level. It does tell wall
+power from battery on GPIO 3: low = wall power, high = battery. The home page then shows a banner,
+and after 90 minutes on battery the box shuts down cleanly instead of dying when the battery runs
+flat. A full 5000 mAh battery runs a busy Pi 4 with an SSD for about 2 to 3 hours (about 6 W);
+90 minutes leaves room for a battery that wasn't full or has aged. With the PiSugar's auto-start switch ON, it starts again by itself when wall power returns.
+
+- Settings: `/etc/emergencybox/power.conf`. `BATTERY_SHUTDOWN_MIN=90` (0 = never) is read every
+  few seconds, so a change needs no reinstall.
+- `PISUGAR` in `box.conf` (`auto`, `yes`, `no`): `auto` turns the watch on when GPIO 3 reads wall
+  power during the install. Without a PiSugar, GPIO 3 reads high and would look like battery, so
+  it stays off. Install while on wall power, or set `PISUGAR="yes"`.
+- Leave I2C off (`dtparam=i2c_arm` in `/boot/firmware/config.txt`): it takes GPIO 3 and the
+  source then shows as unknown.
+
 ## Parts
 
 `sudo ./install.sh --list` shows them. One part at a time: `sudo ./install.sh library`.

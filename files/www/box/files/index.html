@@ -33,6 +33,8 @@
 .fr b{font-weight:500;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fr small{color:var(--muted);font-size:12.5px;grid-column:2}
 .fr .more{grid-row:span 2;grid-column:3;color:var(--muted);font-size:20px;padding:0 4px}
+.fr .fm{padding:8px 14px;margin:-8px -10px -8px 0;border:1px solid transparent}
+.fr .fm:hover{border-color:var(--sig);color:var(--sig)}
 .drop{outline:2px dashed var(--sig);outline-offset:4px}
 .ups{display:grid;gap:6px;margin:0 0 12px}
 .up{border:1px solid var(--line);background:var(--panel);padding:8px 12px;font-size:14px}
@@ -231,7 +233,7 @@ async function loadList() {
     <button class="fr${x.dir ? ' dir' : ''}" type="button" data-i="${i}">
       ${svg(x.dir ? 'dir' : kindIc(x.name))}<b>${esc(x.label || x.name)}</b>
       <small>${x.dir ? 'Folder' : size(x.size)} · ${when(x.mtime)}</small>
-      <span class="more" aria-hidden="true">${x.dir ? '›' : '⋯'}</span></button>`).join('')
+      ${x.dir ? '<span class="more fm" data-m title="Folder options: rename, move, delete">⋯</span>' : '<span class="more" aria-hidden="true">⋯</span>'}</button>`).join('')
     : `<p class="empty">${path ? 'This folder is empty.' : 'Nothing here yet. Use “Upload files” to add some.'}</p>`;
 }
 
@@ -245,7 +247,7 @@ $('drives').addEventListener('click', e => { const b = e.target.closest('[data-r
 $('list').addEventListener('click', e => {
   const b = e.target.closest('.fr'); if (!b) return;
   const x = ITEMS[+b.dataset.i];
-  if (x.dir) open(root, join(path, x.name)); else fileMenu(x);
+  if (x.dir) e.target.closest('[data-m]') ? folderMenu(x) : open(root, join(path, x.name)); else fileMenu(x);
 });
 addEventListener('popstate', () => { const s = params(); root = s.get('root') || 'my'; path = s.get('path') || ''; drawDrives(); loadList(); });
 
@@ -309,7 +311,7 @@ async function itemAction(a, x) {
   }
 }
 
-/* ---------- folder rows menu (long-press alternative: ⋯ on folders via context) ---------- */
+/* ---------- folder rows menu: the ⋯ on a folder row (also right-click or long-press) ---------- */
 $('list').addEventListener('contextmenu', e => {
   const b = e.target.closest('.fr.dir'); if (!b) return; e.preventDefault();
   folderMenu(ITEMS[+b.dataset.i]);

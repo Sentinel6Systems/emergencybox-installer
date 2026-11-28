@@ -54,6 +54,10 @@ JELLYFIN_LIBRARIES="movies:Movies shows:Shows kids:Kids documentaries:Documentar
 EMULATORJS_ARCHIVE=""
 
 # --- Raspberry Pi only ------------------------------------------------------
+# PiSugar S Plus battery: "auto" = turned on when GPIO 3 reads wall power during the install.
+# On battery the home page warns, and the box shuts down cleanly after 90 minutes. Change that
+# time (0 = never) in /etc/emergencybox/power.conf; boxd reads it every few seconds.
+PISUGAR="auto"                             # auto, yes or no
 PI_POWER_OFF_ON_HALT="yes"                 # fully power down on shutdown (EEPROM setting)
 # USB-to-SSD bridges that freeze in UAS mode; forced to plain usb-storage. Empty = none.
 # 0bda:9210 = Realtek RTL9210 (a common NVMe/SATA enclosure chip). Harmless if you don't have one.

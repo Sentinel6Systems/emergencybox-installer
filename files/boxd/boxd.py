@@ -7,11 +7,12 @@ POST /api/reboot    reboot
 GET  /api/clients   devices on the hotspot (name, type, IP, MAC, signal, data)
 GET  /api/parts     which parts of the box are installed, and how much content each has
 GET  /api/doctor    the latest box-doctor result (self-check, every 15 minutes)
+GET  /api/power     power source (wall or PiSugar battery), battery shutdown countdown, Pi power flags
 GET  /api/network   connections (Ethernet, Wi-Fi, VPN) and their traffic: ?range=30s|5m|24h|1w
 
 Python standard library only. Listens on 127.0.0.1; nginx proxies /api/ to it.
 """
-import glob, json, os, re, shutil, signal, subprocess, threading, time
+import glob, json, os, re, shlex, shutil, signal, subprocess, threading, time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
@@ -24,7 +25,8 @@ CONTENT = os.environ.get("BOXD_CONTENT", "/srv/box/content")
 MAPS = os.environ.get("BOXD_MAPS", "/opt/fieldmap-server/data")   # fieldmap-server keeps its own data
 PARTS_DIR = "/etc/emergencybox/parts"          # each module drops a file named after its part
 DOCTOR_FILE = "/run/emergencybox/doctor.json"  # written by box-doctor
-NET_HISTORY = os.path.join(os.environ.get("BOXD_STATE", "/var/lib/boxd"), "net-history.json")
+STATE_DIR = os.environ.get("BOXD_STATE", "/var/lib/boxd")
+NET_HISTORY = os.path.join(STATE_DIR, "net-history.json")
 TEMP_WARN, TEMP_HOT = 65.0, 80.0  # Pi 4 firmware starts throttling at 80 C
 
 samples = deque(maxlen=WINDOW + 1)   # one per second
@@ -123,6 +125,16 @@ def count_clients():
     return n
 
 
+def uplink():
+    """(interface, its kind label) of the default route: the way out to the internet. None = offline."""
+    for line in run(["ip", "-4", "route", "show", "default"]).splitlines():
+        m = re.search(r"\bdev (\S+)", line)
+        if m:
+            kind, label = iface_kind(m.group(1))
+            return {"if": m.group(1), "label": label or m.group(1)}
+    return None
+
+
 def throttled():
     """Pi firmware flags: under-voltage / throttling now, or since boot."""
     try:
@@ -136,7 +148,11 @@ def throttled():
 
 def sampler():
     saved = time.monotonic()
+    n = 0
     while True:
+        n += 1
+        if n % 2 == 0:
+            power.tick()
         s = sample()
         with lock:
             prev = samples[-1] if samples else None
@@ -145,7 +161,7 @@ def sampler():
             net_record(prev, s)
         now = time.monotonic()
         if now - slow["t"] >= 5:
-            slow.update(clients=count_clients(), throttled=throttled(), t=now)
+            slow.update(clients=count_clients(), throttled=throttled(), uplink=uplink(), t=now)
         if now - saved >= 300:          # the 24-hour and week history survive a restart
             net_save(); saved = now
         time.sleep(1)
@@ -163,6 +179,23 @@ def stats():
     cpu = 100 * (1 - didle / dtot) if dtot > 0 else 0
     rx = (b["net"][0] - a["net"][0]) * 8 / dt / 1e6
     tx = (b["net"][1] - a["net"][1]) * 8 / dt / 1e6
+    # Wi-Fi and Ethernet each: down = toward the people using the box (what the hotspot sends,
+    # what any other connection receives)
+    links = {}
+    for name, (r1, t1) in b["ifs"].items():
+        if name.startswith(SKIP_IF) or name not in a["ifs"]:
+            continue
+        kind = "wifi" if os.path.isdir(f"/sys/class/net/{name}/wireless") else \
+            "ethernet" if iface_kind(name)[0] == "ethernet" else None
+        if not kind:
+            continue
+        r0, t0 = a["ifs"][name]
+        down, up = (t1 - t0, r1 - r0) if name == HOTSPOT_IF else (r1 - r0, t1 - t0)
+        l = links.setdefault(kind, {"down_mbps": 0.0, "up_mbps": 0.0})
+        l["down_mbps"] += max(down, 0) * 8 / dt / 1e6
+        l["up_mbps"] += max(up, 0) * 8 / dt / 1e6
+    for l in links.values():
+        l["down_mbps"], l["up_mbps"] = round(l["down_mbps"], 2), round(l["up_mbps"], 2)
     mem_used = sum(s["mem"] for s in ss[1:]) / (len(ss) - 1)
     temps = [s["temp"] for s in ss[1:] if s["temp"] is not None]
     t = sum(temps) / len(temps) if temps else None
@@ -182,11 +215,12 @@ def stats():
         "temp_level": None if t is None else ("hot" if t >= TEMP_HOT else "warm" if t >= TEMP_WARN else "ok"),
         "mem_used": int(mem_used), "mem_total": b["memt"],
         "net_rx_mbps": round(rx, 2), "net_tx_mbps": round(tx, 2), "net_if": HOTSPOT_IF,
+        "net": links, "uplink": slow.get("uplink"),
         "clients": slow["clients"],
         "disks": disks,
         "uptime_s": int(up),
         "load1": round(load[0], 2),
-        "power": slow["throttled"],
+        "power": power_status(),
     }
 
 
@@ -533,6 +567,114 @@ def network(rng):
     return {"range": rng, "connections": out}
 
 
+# ---------- power source: a PiSugar S Plus tells wall power from battery on GPIO 3 ----------
+# pinctrl shows "3: ip pu | lo" on wall power and "| hi" on battery. The S Plus has no fuel gauge,
+# so there is no battery percentage. I2C must stay off: it would take the pin.
+# Settings in POWER_CONF, read every check (a change needs no reinstall):
+#   PISUGAR=yes|no            no = don't watch the pin (without a PiSugar it reads hi, which looks like battery)
+#   BATTERY_SHUTDOWN_MIN=90   clean shutdown after this long on battery; 0 = never
+PINCTRL = shlex.split(os.environ.get("BOXD_PINCTRL", "pinctrl get 3"))
+POWEROFF = shlex.split(os.environ.get("BOXD_POWEROFF", "systemctl poweroff"))
+POWER_CONF = os.environ.get("BOXD_POWER_CONF", "/etc/emergencybox/power.conf")
+POWER_STATE = os.path.join(STATE_DIR, "power-source.json")
+SHUTDOWN_MIN_DEFAULT = 90           # a full 5000 mAh S Plus runs a busy Pi 4 + SSD about 2-3 h
+DEBOUNCE = 3                     # identical reads (2 s apart) before a change counts
+
+
+def pin_source(out):
+    """pinctrl output -> "external", "battery" or None (missing, unreadable, or not an input)."""
+    m = re.match(r"\s*3:\s*(\w+)[^|\n]*\|\s*(lo|hi)\b", out or "")
+    if not m or m.group(1) != "ip":
+        return None
+    return "external" if m.group(2) == "lo" else "battery"
+
+
+def power_conf(text):
+    """(watch the pin?, minutes on battery before shutdown). Bad values fall back to the defaults."""
+    conf = {}
+    for line in text.splitlines():
+        k, _, v = line.partition("=")
+        conf[k.strip()] = v.split("#")[0].strip().strip('"\'')
+    m = conf.get("BATTERY_SHUTDOWN_MIN", "")
+    minutes = int(m) if m.isdigit() and int(m) <= 1440 else SHUTDOWN_MIN_DEFAULT
+    return conf.get("PISUGAR") == "yes", minutes
+
+
+class PowerWatch:
+    """Debounced power source and the battery shutdown countdown. Clock, commands and files can be
+    swapped for tests."""
+
+    def __init__(self, run_cmd=None, now=time.time, poweroff=None, conf=POWER_CONF, state=POWER_STATE, boot_time=None):
+        self.run = run_cmd or run
+        self.now, self.conf, self.state = now, conf, state
+        self.poweroff = poweroff or (lambda: later(POWEROFF))
+        self.source, self.since, self.fired = "unknown", None, False
+        self.cand, self.cand_t, self.count = None, None, 0
+        self.minutes = SHUTDOWN_MIN_DEFAULT
+        self.resume = None              # battery start time from before a boxd restart (not a reboot)
+        try:
+            with open(state) as f:
+                d = json.load(f)
+            boot = boot_time if boot_time is not None else now() - float(read("/proc/uptime", "0").split()[0])
+            if d.get("source") == "battery" and float(d["since"]) > boot:
+                self.resume = float(d["since"])
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+    def log(self, msg):
+        print("power: " + msg, flush=True)      # the journal keeps it across the reboot
+
+    def save(self):
+        try:
+            os.makedirs(os.path.dirname(self.state), exist_ok=True)
+            with open(self.state + ".tmp", "w") as f:
+                json.dump({"source": self.source, "since": self.since}, f)
+            os.replace(self.state + ".tmp", self.state)
+        except OSError:
+            pass
+
+    def tick(self):
+        watch, self.minutes = power_conf(read(self.conf))
+        now = self.now()
+        got = (pin_source(self.run(PINCTRL)) if watch else None) or "unknown"
+        if got != self.cand:
+            self.cand, self.cand_t, self.count = got, now, 0
+        self.count += 1
+        if self.count >= DEBOUNCE and got != self.source:
+            old, was = self.source, self.since
+            self.source, self.since, self.fired = got, self.cand_t, False
+            if got == "battery" and self.resume:
+                self.since = self.resume
+            self.resume = None
+            if got == "battery":
+                self.log("on battery (GPIO 3 high)" + (f"; clean shutdown after {self.minutes} min unless wall power returns"
+                                                       if self.minutes else "; battery shutdown is off"))
+            elif old == "battery":
+                self.log(f"wall power back after {round((now - was) / 60, 1)} min on battery; shutdown countdown cancelled")
+            elif got == "unknown" and watch:
+                self.log("can't read GPIO 3 (pinctrl missing, or the pin isn't an input): source unknown")
+            self.save()
+        if self.source == "battery" and self.minutes and not self.fired and now - self.since >= self.minutes * 60:
+            self.fired = True
+            self.log(f"on battery for {round((now - self.since) / 60, 1)} min (limit {self.minutes} min): shutting down cleanly")
+            self.poweroff()
+
+    def status(self):
+        now = self.now()
+        bat = self.source == "battery"
+        left = max(0, round(self.since + self.minutes * 60 - now)) if bat and self.minutes else None
+        return {"source": self.source, "on_battery_seconds": round(now - self.since) if bat else None,
+                "shutdown_in_seconds": left, "shutdown_after_min": self.minutes or None}
+
+
+power = PowerWatch()
+
+
+def power_status():
+    """Pi firmware flags (when vcgencmd works) plus the power source."""
+    return {**(slow["throttled"] or {}), **power.status()}
+
+
 def later(cmd):
     # reply first, then act, so the browser gets its answer
     threading.Timer(1.5, lambda: subprocess.run(cmd)).start()
@@ -558,6 +700,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"parts": parts()})
         if p == "/api/doctor":
             return self.send(200, doctor())
+        if p == "/api/power":
+            return self.send(200, power_status())
         if p == "/api/network":
             return self.send(200, network(parse_qs(urlsplit(self.path).query).get("range", ["30s"])[0]))
         if p == "/api/clients":
