@@ -37,6 +37,16 @@
 .stage{border:1px solid var(--sig);background:var(--panel2);padding:12px 14px;margin:0 0 12px}
 .stage .note{margin:0;word-break:break-all}
 .fl b{font-weight:normal;color:var(--warn)}
+.fd>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14.5px;cursor:pointer;list-style:none}
+.fd>summary::-webkit-details-marker{display:none}
+.fd>summary span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fd>summary span::before{content:"›";display:inline-block;width:1.1em;color:var(--muted);transition:transform .15s}
+.fd[open]>summary span::before{transform:rotate(90deg)}
+.fd>summary small{color:var(--muted);white-space:nowrap}
+.fd>summary button{font:inherit;font-size:13px;min-height:34px;padding:0 10px;border:1px solid var(--line);background:none;color:var(--warn);cursor:pointer}
+.fd>summary:hover{background:var(--panel2)}
+.fdin{padding-left:18px;border-bottom:1px solid var(--line)}
+.fdin>:last-child,.fdin>.fd:last-child>summary{border-bottom:0}
 .job{border:1px solid var(--sig);background:var(--panel2);padding:12px 14px;margin:16px 0}
 .job.err{border-color:var(--warn)}
 .job pre{max-height:200px;overflow:auto;font-size:12.5px;white-space:pre-wrap;margin:8px 0 0;color:var(--muted)}
@@ -210,7 +220,14 @@ function renderContent() {
   const groups = C.groups.map(g => {
     const loose = f => tab === 'movies' && g.type !== 'other' && !f.name.includes('/');    // not in a movie's or show's folder
     const nl = g.files.filter(loose).length;
-    const rows = g.files.map(f => `<div class="fl"><span title="${esc(f.name)}">${esc(f.name)}${loose(f) ? ' <b>· not in a folder</b>' : ''}</span><small>${size(f.size)}</small><button type="button" data-g="${esc(g.id)}" data-n="${esc(f.name)}">Delete</button></div>`).join('');
+    // Grouped by folder (a show, its seasons, a movie), each folder collapsed with its count and size
+    const tree = {dirs: {}, files: []};
+    g.files.forEach(f => { let n = tree; const bits = f.name.split('/'); bits.slice(0, -1).forEach(b => n = n.dirs[b] = n.dirs[b] || {dirs: {}, files: []}); n.files.push({...f, leaf: bits[bits.length - 1]}); });
+    const tally = n => Object.values(n.dirs).reduce((a, d) => { const t = tally(d); return [a[0] + t[0], a[1] + t[1]]; }, [n.files.length, n.files.reduce((s, f) => s + f.size, 0)]);
+    const draw = (n, pre) => Object.keys(n.dirs).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).map(k => { const [c, s] = tally(n.dirs[k]);
+        return `<details class="fd"><summary><span title="${esc(pre + k)}">${esc(k)}</span><small>${c} file${c === 1 ? '' : 's'} · ${size(s)}</small><button type="button" data-g="${esc(g.id)}" data-dir="${esc(pre + k)}" data-c="${c}">Delete</button></summary><div class="fdin">${draw(n.dirs[k], pre + k + '/')}</div></details>`; }).join('')
+      + n.files.sort((a, b) => a.leaf.localeCompare(b.leaf, undefined, {numeric: true})).map(f => `<div class="fl"><span title="${esc(f.name)}">${esc(f.leaf)}${loose(f) ? ' <b>· not in a folder</b>' : ''}</span><small>${size(f.size)}</small><button type="button" data-g="${esc(g.id)}" data-n="${esc(f.name)}">Delete</button></div>`).join('');
+    const rows = draw(tree, '');
     return (C.groups.length > 1 ? `<p class="note" style="margin:12px 0 0"><b>${esc(g.name)}</b> · ${g.files.length} file${g.files.length === 1 ? '' : 's'}${nl ? ` · <span style="color:var(--warn)">${nl} not in a folder: delete and add again</span>` : ''}</p>` : '') +
       `<div class="files">${rows || '<p class="empty">Nothing here yet.</p>'}</div>`;
   }).join('');
@@ -220,6 +237,12 @@ function renderContent() {
   $('cBody').querySelectorAll('.fl button').forEach(b => b.onclick = async () => {
     if (!await confirmDlg('Delete this file?', b.dataset.n, 'Delete')) return;
     try { const d = await api('delete', {kind:tab, sub:b.dataset.g, name:b.dataset.n}); toastUp(d.message || 'Deleted.'); load(); }
+    catch (err) { toastUp(err.message, true); } });
+  $('cBody').querySelectorAll('.fd>summary button').forEach(b => b.onclick = async e => {
+    e.preventDefault(); e.stopPropagation();          // the button sits in the folder's summary: don't open or close it
+    const c = +b.dataset.c;
+    if (!await confirmDlg('Delete this folder?', `${b.dataset.dir}: ${c} file${c === 1 ? '' : 's'} and everything else inside it. This can't be undone.`, 'Delete')) return;
+    try { const d = await api('delete', {kind:tab, sub:b.dataset.g, name:b.dataset.dir, folder:true}); toastUp(d.message || 'Deleted.'); load(); }
     catch (err) { toastUp(err.message, true); } });
 }
 function toastUp(t, bad) { const u = document.createElement('div'); u.className = 'up' + (bad ? ' err' : ''); u.innerHTML = `<div><span>${esc(t)}</span></div>`; $('ups').prepend(u); setTimeout(() => u.remove(), 8000); }

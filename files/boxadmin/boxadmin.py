@@ -917,6 +917,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         lib = sub.partition("/")[0] if kind == "movies" else sub
         d = kind_dir(kind, lib)
         p = os.path.realpath(os.path.join(d, name))
+        if b.get("folder") is True:                         # a whole movie, show or season folder
+            if kind != "movies" or not p.startswith(os.path.realpath(d) + os.sep) or not os.path.isdir(p):
+                raise ApiError(404, "That folder isn't there.")
+            shutil.rmtree(p)
+            parent = os.path.dirname(p)
+            while parent != os.path.realpath(d) and not os.listdir(parent):
+                os.rmdir(parent); parent = os.path.dirname(parent)
+            log(f"delete folder {kind}/{sub}/{name}")
+            return self.send(200, {"ok": True, "message": ("Deleted. " + after_change(kind)).strip()})
         if not p.startswith(os.path.realpath(d) + os.sep) or not os.path.isfile(p):
             raise ApiError(404, "That file isn't there.")
         # The same files the page lists and uploads: their endings, and for maps only the layers
